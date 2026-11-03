@@ -2,1930 +2,305 @@
 <html><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<link href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;500;600;700&family=Inter:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
-<style>:root{--font-stack:Arial,Arimo,Helvetica,sans-serif}</style>
-<script>
-// GENERATED from dc-runtime/src/*.ts — do not edit. Rebuild with `cd dc-runtime && bun run build`.
-"use strict";
-(() => {
-  var __defProp = Object.defineProperty;
-  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-
-  // src/react.ts
-  function getReact() {
-    const R = window.React;
-    if (!R) throw new Error("dc-runtime: window.React is not available yet");
-    return R;
-  }
-  function getReactDOM() {
-    const RD = window.ReactDOM;
-    if (!RD) throw new Error("dc-runtime: window.ReactDOM is not available yet");
-    return RD;
-  }
-  var h = ((...args) => getReact().createElement(
-    ...args
-  ));
-
-  // src/parse.ts
-  function parseDcDocument(doc) {
-    const dc = doc.querySelector("x-dc");
-    if (!dc) return null;
-    const scriptEl = doc.querySelector("script[data-dc-script]");
-    const { props, preview } = parseDataProps(
-      scriptEl?.getAttribute("data-props") ?? null
-    );
-    return {
-      template: dc.innerHTML,
-      js: scriptEl ? scriptEl.textContent || "" : "",
-      props,
-      preview
-    };
-  }
-  function parseDcText(src) {
-    const openMatch = /<x-dc(?:\s[^>]*)?>/.exec(src);
-    if (!openMatch) return null;
-    const close = src.lastIndexOf("</x-dc>");
-    if (close === -1 || close < openMatch.index) return null;
-    const template = src.slice(openMatch.index + openMatch[0].length, close);
-    const doc = new DOMParser().parseFromString(src, "text/html");
-    const scriptEl = doc.querySelector("script[data-dc-script]");
-    const { props, preview } = parseDataProps(
-      scriptEl?.getAttribute("data-props") ?? null
-    );
-    return {
-      template,
-      js: scriptEl ? scriptEl.textContent || "" : "",
-      props,
-      preview
-    };
-  }
-  function parseDataProps(raw) {
-    if (!raw) return { props: null, preview: null };
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return { props: null, preview: null };
-    }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { props: null, preview: null };
-    }
-    const obj = parsed;
-    const preview = obj.$preview && typeof obj.$preview === "object" ? obj.$preview : null;
-    const rest = {};
-    for (const k of Object.keys(obj)) {
-      if (k[0] !== "$") rest[k] = obj[k];
-    }
-    return { props: Object.keys(rest).length ? rest : null, preview };
-  }
-  function dcNameFromPath(pathname) {
-    let p = pathname || "";
-    try {
-      p = decodeURIComponent(p);
-    } catch {
-    }
-    const base = p.split("/").pop() || "Root";
-    return base.replace(/\.dc\.html$/, "").replace(/\.html?$/, "") || "Root";
-  }
-
-  // src/boot.ts
-  var BASE_CSS = `
-    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
-      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
-      border-radius:2px;box-sizing:border-box;overflow:hidden}
-    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
-    html.sc-dc-streaming .sc-placeholder,
-    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
-      background:color-mix(in srgb,currentColor 5%,transparent);
-      border-color:transparent}
-    html.sc-dc-streaming .sc-placeholder::before,
-    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
-      position:absolute;inset:0;pointer-events:none;
-      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
-      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
-    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
-    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
-      background:color-mix(in srgb,currentColor 8%,transparent)}
-    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
-      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
-    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
-      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
-      border-radius:2px;box-sizing:border-box;color:transparent;
-      user-select:none}
-    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
-      color:color-mix(in srgb,currentColor 50%,transparent);
-      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
-      padding:0 3px}
-    .sc-host.sc-has-error{position:relative}
-    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
-      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
-      border-radius:4px;white-space:pre-wrap;pointer-events:none}
-    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts \u2014 keep both
-       in sync until dc-runtime regains a build step. */
-    @media print {
-      @page { margin: 0.5cm; }
-      figure, table { break-inside: avoid; }
-      #dc-root, #dc-root > .sc-host { height: auto; }
-      *, *::before, *::after {
-        print-color-adjust: exact; -webkit-print-color-adjust: exact;
-        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
-        animation-delay: -99s !important; animation-duration: .001s !important;
-        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
-        animation-play-state: running !important; transition-duration: 0s !important;
-      }
-    }
-  `;
-  var FULL_PAGE_CSS = "html,body{height:100%;margin:0}#dc-root,#dc-root>.sc-host{height:100%}";
-  function rootNameForDocument(doc, loc) {
-    let bootPath = loc.pathname || "";
-    if (!/\.dc\.html?$/i.test(safeDecode(bootPath))) {
-      try {
-        bootPath = new URL(doc.baseURI || "/").pathname;
-      } catch {
-      }
-    }
-    return dcNameFromPath(bootPath);
-  }
-  function safeDecode(s) {
-    try {
-      return decodeURIComponent(s);
-    } catch {
-      return s;
-    }
-  }
-  function boot(runtime, doc = document) {
-    const parsed = parseDcDocument(doc);
-    if (!parsed) return null;
-    const React = getReact();
-    const rootName = rootNameForDocument(doc, location);
-    runtime.markFetched(rootName);
-    runtime.setRootName(rootName);
-    runtime.adoptParsed(rootName, parsed);
-    if (!window.__resources) {
-      fetch(location.href).then((res) => res.ok ? res.text() : "").then((t) => {
-        const raw = t ? parseDcText(t) : null;
-        if (raw?.template) runtime.updateHtml(rootName, raw.template);
-      }).catch(() => {
-      });
-    }
-    const dc = doc.querySelector("x-dc");
-    const hostEl = doc.createElement("div");
-    hostEl.id = "dc-root";
-    dc.replaceWith(hostEl);
-    if (!parsed.preview) {
-      const s = doc.createElement("style");
-      s.textContent = FULL_PAGE_CSS;
-      doc.head.appendChild(s);
-    }
-    const Root = runtime.getDC(rootName);
-    const entry = runtime.registry.get(rootName);
-    function StandaloneRoot() {
-      const [, setTick] = React.useState(0);
-      React.useEffect(() => {
-        const sub = () => setTick((n) => n + 1);
-        entry.subs.add(sub);
-        return () => {
-          entry.subs.delete(sub);
-        };
-      }, []);
-      const defaults = React.useMemo(() => {
-        const d = {};
-        for (const k in entry.propsMeta || {}) {
-          const v = entry.propsMeta?.[k]?.default;
-          if (v !== void 0) d[k] = v;
-        }
-        return d;
-      }, [entry.propsMeta]);
-      return h(Root, { ...defaults, ...entry.propOverrides || {} });
-    }
-    const ReactDOM = getReactDOM();
-    if (ReactDOM.createRoot)
-      ReactDOM.createRoot(hostEl).render(h(StandaloneRoot));
-    else ReactDOM.render(h(StandaloneRoot), hostEl);
-    return rootName;
-  }
-
-  // src/expr.ts
-  var IDENT_RE = /^[A-Za-z_$][A-Za-z0-9_$]*/;
-  var NUMBER_RE = /^-?\d+(\.\d+)?$/;
-  function resolve(vals, src) {
-    const expr = String(src).trim();
-    if (!expr) return void 0;
-    if (expr[0] === "(" && expr[expr.length - 1] === ")" && parensWrapWhole(expr)) {
-      return resolve(vals, expr.slice(1, -1));
-    }
-    const eq = findTopLevelEquality(expr);
-    if (eq) {
-      const lv = resolve(vals, expr.slice(0, eq.index));
-      const rv = resolve(vals, expr.slice(eq.index + eq.op.length));
-      switch (eq.op) {
-        case "===":
-          return lv === rv;
-        case "!==":
-          return lv !== rv;
-        case "==":
-          return lv == rv;
-        default:
-          return lv != rv;
-      }
-    }
-    if (expr[0] === "!") return !resolve(vals, expr.slice(1));
-    if (expr === "true") return true;
-    if (expr === "false") return false;
-    if (expr === "null") return null;
-    if (expr === "undefined") return void 0;
-    if (NUMBER_RE.test(expr)) return Number(expr);
-    if (expr.length >= 2 && (expr[0] === '"' || expr[0] === "'") && expr[expr.length - 1] === expr[0]) {
-      return expr.slice(1, -1);
-    }
-    return resolvePath(vals, expr);
-  }
-  function parensWrapWhole(expr) {
-    let depth = 0;
-    for (let i = 0; i < expr.length - 1; i++) {
-      if (expr[i] === "(") depth++;
-      else if (expr[i] === ")") {
-        depth--;
-        if (depth === 0) return false;
-      }
-    }
-    return true;
-  }
-  function findTopLevelEquality(expr) {
-    let depth = 0;
-    for (let i = 0; i < expr.length; i++) {
-      const c = expr[i];
-      if (c === "[" || c === "(") depth++;
-      else if (c === "]" || c === ")") depth--;
-      else if (depth === 0 && (c === "=" || c === "!") && expr[i + 1] === "=") {
-        if (i > 0 && (expr[i - 1] === "=" || expr[i - 1] === "!")) continue;
-        if (!expr.slice(0, i).trim()) continue;
-        const op = expr[i + 2] === "=" ? c + "==" : c + "=";
-        return { index: i, op };
-      }
-    }
-    return null;
-  }
-  function resolvePath(vals, expr) {
-    const head = expr.match(IDENT_RE);
-    if (!head) return void 0;
-    let cur = vals == null ? void 0 : vals[head[0]];
-    let i = head[0].length;
-    while (i < expr.length) {
-      if (expr[i] === ".") {
-        const m = expr.slice(i + 1).match(IDENT_RE) || expr.slice(i + 1).match(/^\d+/);
-        if (!m) return void 0;
-        cur = cur == null ? void 0 : cur[m[0]];
-        i += 1 + m[0].length;
-      } else if (expr[i] === "[") {
-        let depth = 1;
-        let j = i + 1;
-        while (j < expr.length && depth > 0) {
-          if (expr[j] === "[") depth++;
-          else if (expr[j] === "]") {
-            depth--;
-            if (depth === 0) break;
-          }
-          j++;
-        }
-        if (depth !== 0) return void 0;
-        const key = resolve(vals, expr.slice(i + 1, j));
-        cur = cur == null ? void 0 : cur[key];
-        i = j + 1;
-      } else {
-        return void 0;
-      }
-    }
-    return cur;
-  }
-
-  // src/encode.ts
-  var CAMEL_ATTR = "sc-camel-";
-  var INLINE_TEXT_TAGS = new Set(
-    "a abbr b bdi bdo br cite code del dfn em i ins kbd mark q s samp small span strike strong sub sup u var wbr".split(
-      " "
-    )
-  );
-  var RAW_WRAP = {
-    select: "sc-raw-select",
-    table: "sc-raw-table",
-    tbody: "sc-raw-tbody",
-    thead: "sc-raw-thead",
-    tfoot: "sc-raw-tfoot",
-    tr: "sc-raw-tr",
-    td: "sc-raw-td",
-    th: "sc-raw-th",
-    caption: "sc-raw-caption"
-  };
-  var RAW_UNWRAP = Object.fromEntries(
-    Object.entries(RAW_WRAP).map(([k, v]) => [v, k])
-  );
-  var EVENT_MAP = {
-    onclick: "onClick",
-    onchange: "onChange",
-    oninput: "onInput",
-    onsubmit: "onSubmit",
-    onkeydown: "onKeyDown",
-    onkeyup: "onKeyUp",
-    onkeypress: "onKeyPress",
-    onmousedown: "onMouseDown",
-    onmouseup: "onMouseUp",
-    onmouseenter: "onMouseEnter",
-    onmouseleave: "onMouseLeave",
-    onfocus: "onFocus",
-    onblur: "onBlur",
-    ondoubleclick: "onDoubleClick",
-    oncontextmenu: "onContextMenu",
-    onmousemove: "onMouseMove",
-    onmouseover: "onMouseOver",
-    onmouseout: "onMouseOut",
-    onpointerdown: "onPointerDown",
-    onpointerup: "onPointerUp",
-    onpointermove: "onPointerMove",
-    onpointerenter: "onPointerEnter",
-    onpointerleave: "onPointerLeave",
-    onpointercancel: "onPointerCancel",
-    onpointerover: "onPointerOver",
-    onpointerout: "onPointerOut",
-    ongotpointercapture: "onGotPointerCapture",
-    onlostpointercapture: "onLostPointerCapture",
-    ontouchstart: "onTouchStart",
-    ontouchend: "onTouchEnd",
-    ontouchmove: "onTouchMove",
-    ontouchcancel: "onTouchCancel",
-    ondragstart: "onDragStart",
-    ondragend: "onDragEnd",
-    ondragenter: "onDragEnter",
-    ondragleave: "onDragLeave",
-    ondragover: "onDragOver",
-    onanimationstart: "onAnimationStart",
-    onanimationend: "onAnimationEnd",
-    onanimationiteration: "onAnimationIteration",
-    ontransitionend: "onTransitionEnd"
-  };
-  var ATTRS = `(?:[^>"']|"[^"]*"|'[^']*')*`;
-  var IMPORT_SELF_CLOSE_RE = new RegExp(
-    "<(x-import|dc-import)(" + ATTRS + ")/>",
-    "gi"
-  );
-  var CAMEL_ATTR_RE = /(\s)([a-z]+[A-Z][A-Za-z0-9]*)(\s*=)/g;
-  function encodeCamelAttrs(html) {
-    return html.replace(
-      CAMEL_ATTR_RE,
-      (_, sp, name, eq) => sp + CAMEL_ATTR + name.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase()) + eq
-    );
-  }
-  function encodeCase(html) {
-    html = html.replace(
-      IMPORT_SELF_CLOSE_RE,
-      (_, t, a) => "<" + t + a + "></" + t + ">"
-    );
-    html = html.replace(/<helmet(\s|>)/gi, "<sc-helmet$1");
-    html = html.replace(/<\/helmet\s*>/gi, "</sc-helmet>");
-    html = encodeCamelAttrs(html);
-    for (const [real, alias] of Object.entries(RAW_WRAP)) {
-      html = html.replace(
-        new RegExp("(</?)" + real + "(?=[\\s>])", "gi"),
-        "$1" + alias
-      );
-    }
-    return html;
-  }
-  function kebabToCamel(s) {
-    return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-  }
-  function cssToObj(css) {
-    const o = {};
-    for (const decl of css.split(";")) {
-      const i = decl.indexOf(":");
-      if (i < 0) continue;
-      const prop = decl.slice(0, i).trim();
-      o[prop.startsWith("--") ? prop : kebabToCamel(prop)] = decl.slice(i + 1).trim();
-    }
-    return o;
-  }
-  function compileAttr(raw) {
-    const whole = raw.match(/^\s*\{\{([\s\S]+?)\}\}\s*$/);
-    if (whole) {
-      const path = whole[1];
-      return (vals) => resolve(vals, path);
-    }
-    if (raw.includes("{{")) {
-      const parts = raw.split(/\{\{([\s\S]+?)\}\}/g);
-      return (vals) => parts.map((s, i) => i & 1 ? resolve(vals, s) ?? "" : s).join("");
-    }
-    return () => raw;
-  }
-
-  // src/compile.ts
-  function collectProps(node, kind, host) {
-    const propGetters = [];
-    const pseudoClasses = [];
-    let hintSize = null;
-    for (const { name, value } of [...node.attributes]) {
-      if (name === "sc-name" || name === "data-dc-tpl") continue;
-      let key = name;
-      if (key.startsWith(CAMEL_ATTR))
-        key = kebabToCamel(key.slice(CAMEL_ATTR.length));
-      if (key === "hint-size") {
-        hintSize = value;
-        continue;
-      }
-      if (key.startsWith("style-")) {
-        pseudoClasses.push(host.pseudoClass(key.slice(6), value));
-        continue;
-      }
-      if (kind !== "dom") {
-        if (key.includes("-") && !(kind === "x-import" && (key.startsWith("aria-") || key.startsWith("data-"))))
-          key = kebabToCamel(key);
-      } else {
-        if (key === "class") key = "className";
-        else if (key === "for") key = "htmlFor";
-        else if (key.startsWith("on"))
-          key = EVENT_MAP[key] || "on" + key[2].toUpperCase() + key.slice(3);
-      }
-      propGetters.push([key, compileAttr(value)]);
-    }
-    return { propGetters, pseudoClasses, hintSize };
-  }
-  var HOST_STYLE_PROPS = /* @__PURE__ */ new Set([
-    "position",
-    "left",
-    "right",
-    "top",
-    "bottom",
-    "inset",
-    "width",
-    "height",
-    "z-index",
-    "transform"
-  ]);
-  function hostPositionStyle(style) {
-    const all = typeof style === "string" ? cssToObj(style) : style != null && typeof style === "object" ? style : null;
-    if (!all) return void 0;
-    const out = {};
-    for (const [k, v] of Object.entries(all)) {
-      const kebab = k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
-      if (HOST_STYLE_PROPS.has(kebab)) out[k] = v;
-    }
-    return Object.keys(out).length ? out : void 0;
-  }
-  function compileTemplate(html, host) {
-    const tpl = document.createElement("template");
-    //! nosemgrep: direct-inner-html-assignment
-    tpl.innerHTML = encodeCase(html);
-    let tplN = 0;
-    (function stamp(node) {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        node.setAttribute("data-dc-tpl", String(tplN++));
-      }
-      for (const c of node.childNodes) stamp(c);
-    })(tpl.content);
-    const builders = walkChildren(tpl.content, host);
-    const render = ((vals, ctx) => builders.map((b, i) => b(vals || {}, ctx, i)));
-    render.__annotated = tpl.innerHTML;
-    return render;
-  }
-  function walkChildren(node, host) {
-    return [...node.childNodes].map((c) => walk(c, host)).filter((b) => b != null);
-  }
-  var SLIDE_ID_VALUE_RE = /^[0-9a-f]{8}$/;
-  var DECK_CONTROL_FLOW_RE = /^(sc-if|sc-for|sc-else|dc-import|x-import)$/;
-  var DECK_AUX_RE = /^(template|script|style|sc-helmet|helmet)$/;
-  function isDeckMountTag(el) {
-    if (el.localName === "deck-stage") return true;
-    return el.localName === "x-import" && (el.getAttribute("component-from-global-scope") || "") === "deck-stage";
-  }
-  function walkDeckChildren(el, host) {
-    const pairs = [...el.childNodes].map((c) => ({ c, b: walk(c, host) })).filter((p) => p.b !== null);
-    const kids = pairs.map((p) => p.b);
-    const seen = /* @__PURE__ */ new Set();
-    const wsSeen = /* @__PURE__ */ new Map();
-    const keys = [];
-    const nextSlideId = new Array(pairs.length);
-    {
-      let upcoming = null;
-      for (let j = pairs.length - 1; j >= 0; j--) {
-        const n = pairs[j].c;
-        if (n.nodeType === Node.ELEMENT_NODE) {
-          const t = n.localName;
-          upcoming = !DECK_AUX_RE.test(t) && !DECK_CONTROL_FLOW_RE.test(t) ? n.getAttribute("data-om-slide-id") : null;
-        }
-        nextSlideId[j] = upcoming;
-      }
-    }
-    for (let j = 0; j < pairs.length; j++) {
-      const { c } = pairs[j];
-      if (c.nodeType === Node.TEXT_NODE) {
-        if ((c.nodeValue ?? "").trim() === "") {
-          const base = nextSlideId[j] ? "omid-ws:" + nextSlideId[j] : "omid-ws:aux";
-          const n = wsSeen.get(base) ?? 0;
-          wsSeen.set(base, n + 1);
-          keys.push(n === 0 ? base : base + ":" + n);
-          continue;
-        }
-        return { kids, keys: null };
-      }
-      if (c.nodeType !== Node.ELEMENT_NODE) {
-        keys.push(j);
-        continue;
-      }
-      const child = c;
-      const tag = child.localName;
-      if (DECK_AUX_RE.test(tag)) {
-        keys.push(j);
-        continue;
-      }
-      if (DECK_CONTROL_FLOW_RE.test(tag)) return { kids, keys: null };
-      const v = child.getAttribute("data-om-slide-id");
-      if (!v || !SLIDE_ID_VALUE_RE.test(v) || seen.has(v)) {
-        return { kids, keys: null };
-      }
-      seen.add(v);
-      keys.push("omid:" + v);
-    }
-    return { kids, keys };
-  }
-  function renderDeckKids(kids, kidKeys, vals, ctx) {
-    return kids.map((b, j) => {
-      const k = kidKeys ? kidKeys[j] : j;
-      const out = b(vals, ctx, k);
-      return kidKeys != null && typeof out === "string" ? h(getReact().Fragment, { key: k }, out) : out;
-    });
-  }
-  function walk(node, host) {
-    if (node.nodeType === Node.TEXT_NODE) return walkText(node);
-    if (node.nodeType !== Node.ELEMENT_NODE) return null;
-    const el = node;
-    const tag = el.tagName.toLowerCase();
-    if (tag === "sc-for") return walkFor(el, host);
-    if (tag === "sc-if") return walkIf(el, host);
-    if (tag === "x-import") return walkXImport(el, host);
-    if (tag === "sc-helmet") return host.helmet(el);
-    if (tag === "dc-import") return walkComponent(el, host);
-    return walkElement(el, host);
-  }
-  var warnedHoles = /* @__PURE__ */ new Set();
-  function warnUnresolved(ctx, what) {
-    const key = (ctx?.__name || "?") + "\0" + what;
-    if (warnedHoles.has(key)) return;
-    warnedHoles.add(key);
-    console.warn("[dc-runtime] " + (ctx?.__name || "template") + ": " + what);
-  }
-  function walkText(node) {
-    const txt = node.nodeValue ?? "";
-    if (!txt.includes("{{")) {
-      if (!txt.trim() && !txt.includes(" ")) return null;
-      return () => txt;
-    }
-    const parts = txt.split(/\{\{([\s\S]+?)\}\}/g);
-    return (vals, ctx, key) => h(
-      getReact().Fragment,
-      { key },
-      ...parts.map((p, i) => {
-        if (!(i & 1)) return p;
-        const v = resolve(vals, p);
-        if (v === void 0) {
-          if (!ctx?.__streamingNow) {
-            if (document.body?.hasAttribute("data-dc-editor-on")) {
-              return h(
-                "span",
-                { key: i, className: "sc-interp sc-unresolved" },
-                "{{ " + p.trim() + " }}"
-              );
-            }
-            warnUnresolved(
-              ctx,
-              "{{ " + p.trim() + " }} never resolved \u2014 rendered as empty"
-            );
-            return null;
-          }
-          return h(
-            "span",
-            { key: i, className: "sc-interp sc-missing" },
-            p.trim()
-          );
-        }
-        if (getReact().isValidElement(v) || Array.isArray(v)) {
-          return h(getReact().Fragment, { key: i }, v);
-        }
-        if (v === null || typeof v === "boolean") return null;
-        return h("span", { key: i, className: "sc-interp" }, String(v));
-      })
-    );
-  }
-  function walkFor(el, host) {
-    const listGet = compileAttr(el.getAttribute("list") || "");
-    const asName = el.getAttribute("as") || "item";
-    const hintN = parseInt(el.getAttribute("hint-placeholder-count") || "0", 10);
-    const kids = walkChildren(el, host);
-    const listSrc = el.getAttribute("list") || "";
-    return (vals, ctx, key) => {
-      let list = listGet(vals);
-      if (!Array.isArray(list)) {
-        if (!ctx?.__streamingNow) {
-          if (list !== void 0 && list !== null) {
-            warnUnresolved(
-              ctx,
-              'sc-for list="' + listSrc + '" is not an array (' + typeof list + ")"
-            );
-          }
-          list = [];
-        } else {
-          list = hintN > 0 ? Array(hintN).fill(void 0) : [];
-        }
-      }
-      return h(
-        getReact().Fragment,
-        { key },
-        list.map((item, i) => {
-          const sub = { ...vals, [asName]: item, $index: i };
-          return h(
-            getReact().Fragment,
-            { key: i },
-            kids.map((b, j) => b(sub, ctx, j))
-          );
-        })
-      );
-    };
-  }
-  function walkIf(el, host) {
-    const valGet = compileAttr(el.getAttribute("value") || "");
-    const hintRaw = el.getAttribute("hint-placeholder-val");
-    const hintGet = hintRaw != null ? compileAttr(hintRaw) : null;
-    const kids = walkChildren(el, host);
-    return (vals, ctx, key) => {
-      let v = valGet(vals);
-      if (v === void 0 && hintGet && ctx?.__streamingNow) v = hintGet(vals);
-      return v ? h(
-        getReact().Fragment,
-        { key },
-        kids.map((b, j) => b(vals, ctx, j))
-      ) : null;
-    };
-  }
-  function walkComponent(el, host) {
-    const name = el.getAttribute("name") || el.getAttribute("component") || "";
-    el.removeAttribute("name");
-    el.removeAttribute("component");
-    const tplId = el.getAttribute("data-dc-tpl");
-    const styleRaw = el.getAttribute("style");
-    el.removeAttribute("style");
-    const styleGet = styleRaw != null ? compileAttr(styleRaw) : null;
-    const { propGetters, hintSize } = collectProps(el, "dc-import", host);
-    const kids = walkChildren(el, host);
-    return (vals, ctx, key) => {
-      const props = {
-        key,
-        __hintSize: hintSize,
-        __tplId: tplId,
-        __hostStyle: styleGet ? hostPositionStyle(styleGet(vals)) : void 0
-      };
-      for (const [k, g] of propGetters) {
-        const v = g(vals);
-        if (k === "dcProps") {
-          if (v && typeof v === "object") Object.assign(props, v);
-          continue;
-        }
-        props[k] = v;
-      }
-      if (kids.length) props.children = kids.map((b, j) => b(vals, ctx, j));
-      return h(host.component(name), props);
-    };
-  }
-  function walkXImport(el, host) {
-    const globalNameGet = compileAttr(
-      el.getAttribute("component-from-global-scope") || ""
-    );
-    const exportNameGet = compileAttr(
-      el.getAttribute("component") || el.getAttribute("name") || ""
-    );
-    const fromRaw = el.getAttribute("from") || (el.getAttribute("component-from-global-scope") ? "" : el.getAttribute("src") || el.getAttribute("import") || "");
-    const urls = fromRaw.trim() ? fromRaw.trim().split(/\s+/) : [];
-    const url = urls.length ? urls[urls.length - 1] : "";
-    const kindOf = (u) => /\.(jsx|tsx)(\?|#|$)/i.test(u) ? "jsx" : "js";
-    const tplId = el.getAttribute("data-dc-tpl");
-    const styleRaw = el.getAttribute("style");
-    el.removeAttribute("style");
-    const styleGet = styleRaw != null ? compileAttr(styleRaw) : null;
-    const wrap = tplId != null || styleGet != null;
-    const { propGetters, hintSize } = collectProps(el, "x-import", host);
-    const hasContent = el.children.length > 0 || !!(el.textContent || "").trim();
-    const deckKeyed = hasContent && isDeckMountTag(el) ? walkDeckChildren(el, host) : null;
-    const kids = deckKeyed ? deckKeyed.kids : hasContent ? walkChildren(el, host) : [];
-    const kidKeys = deckKeyed?.keys ?? null;
-    const urlBindable = fromRaw.includes("{{");
-    if (urls.length && !urlBindable) {
-      let prev;
-      for (const u of urls) prev = host.loadExternal(kindOf(u), u, prev);
-    }
-    const evalName = (g, vals) => {
-      const v = g(vals);
-      const s = v == null ? "" : String(v);
-      return s.includes("{{") ? "" : s;
-    };
-    return (vals, ctx, key) => {
-      const globalName = evalName(globalNameGet, vals);
-      const name = globalName || evalName(exportNameGet, vals);
-      const C = !name || urlBindable ? null : globalName ? host.resolveExternalGlobal(url, globalName) : host.resolveExternal(url, name);
-      const hostStyle = styleGet ? hostPositionStyle(styleGet(vals)) : void 0;
-      const wrapper = wrap ? {
-        key,
-        className: "sc-host-x",
-        "data-dc-tpl": tplId,
-        style: hostStyle || { display: "contents" }
-      } : null;
-      if (!C) {
-        const error = urlBindable ? "x-import `from` cannot contain {{ \u2026 }} \u2014 module URLs are resolved at parse time; use a literal URL" : host.resolveExternalError(url, name);
-        const ph = host.placeholder({
-          key: wrapper ? void 0 : key,
-          name,
-          hintSize,
-          error
-        });
-        return wrapper ? h("div", wrapper, ph) : ph;
-      }
-      const props = wrapper ? {} : { key };
-      let unresolvedHole = false;
-      for (const [k, g] of propGetters) {
-        if (k === "component" || k === "componentFromGlobalScope" || k === "from") {
-          continue;
-        }
-        const v = g(vals);
-        if (v === void 0) unresolvedHole = true;
-        if (k === "dcProps") {
-          if (v && typeof v === "object") Object.assign(props, v);
-          continue;
-        }
-        props[k] = v;
-      }
-      if (unresolvedHole && ctx?.__htmlStreamingNow) {
-        const ph = host.placeholder({
-          key: wrapper ? void 0 : key,
-          name,
-          hintSize,
-          error: null
-        });
-        return wrapper ? h("div", wrapper, ph) : ph;
-      }
-      if (kids.length) {
-        props.children = renderDeckKids(kids, kidKeys, vals, ctx);
-      }
-      return wrapper ? h("div", wrapper, h(C, props)) : h(C, props);
-    };
-  }
-  function contentKey(el) {
-    const clone = el.cloneNode(true);
-    for (const d of clone.querySelectorAll("*")) {
-      while (d.attributes.length) d.removeAttribute(d.attributes[0].name);
-    }
-    const s = clone.innerHTML;
-    let h2 = 5381;
-    for (let i = 0; i < s.length; i++) h2 = (h2 << 5) + h2 + s.charCodeAt(i) | 0;
-    return s.length + "." + (h2 >>> 0).toString(36);
-  }
-  var NEVER_CONTENT_KEYED = new Set(
-    "script style textarea option title select canvas iframe video audio".split(
-      " "
-    )
-  );
-  var NOT_INLINE_SELECTOR = ":not(" + [...INLINE_TEXT_TAGS].join(",") + ")";
-  function walkElement(el, host) {
-    const realTag = RAW_UNWRAP[el.localName] || el.localName;
-    const tplId = el.getAttribute("data-dc-tpl");
-    const inlineOnly = el.childNodes.length > 0 && !NEVER_CONTENT_KEYED.has(realTag) && el.querySelector(NOT_INLINE_SELECTOR) === null;
-    const keySuffix = inlineOnly ? "|" + contentKey(el) : "";
-    const { propGetters, pseudoClasses } = collectProps(el, "dom", host);
-    const deckKeyed = isDeckMountTag(el) ? walkDeckChildren(el, host) : null;
-    const kids = deckKeyed ? deckKeyed.kids : walkChildren(el, host);
-    const kidKeys = deckKeyed?.keys ?? null;
-    return (vals, ctx, key) => {
-      const props = {
-        key: key + keySuffix,
-        "data-dc-tpl": tplId
-      };
-      for (const [k, g] of propGetters) {
-        let v = g(vals);
-        if (k === "style" && typeof v === "string") v = cssToObj(v);
-        if ((k === "value" || k === "checked") && v === void 0) {
-          v = k === "checked" ? false : "";
-        }
-        props[k] = v;
-      }
-      if (pseudoClasses.length) {
-        props.className = [props.className, ...pseudoClasses].filter(Boolean).join(" ");
-      }
-      return h(realTag, props, ...renderDeckKids(kids, kidKeys, vals, ctx));
-    };
-  }
-
-  // src/logic.ts
-  var StreamableLogic = class {
-    constructor(props) {
-      __publicField(this, "props");
-      __publicField(this, "state", {});
-      /** Back-pointer to the wrapper component, installed after construction. */
-      __publicField(this, "__host");
-      this.props = props || {};
-    }
-    setState(update, cb) {
-      this.__host && this.__host.__setLogicState(update, cb);
-    }
-    forceUpdate() {
-      this.__host && this.__host.forceUpdate();
-    }
-    componentDidMount() {
-    }
-    componentDidUpdate(_prevProps) {
-    }
-    componentWillUnmount() {
-    }
-    /** The flat object the template renders against (merged over props). */
-    renderVals() {
-      return {};
-    }
-  };
-  function evalDcLogic(src) {
-    //! nosemgrep: eval-and-function-constructor
-    const fn = new Function(
-      "DCLogic",
-      "StreamableLogic",
-      "React",
-      src + '\n;return (typeof Component!=="undefined"&&Component)||undefined;'
-    );
-    return fn(StreamableLogic, StreamableLogic, getReact());
-  }
-
-  // src/component.ts
-  function shallowEqual(a, b) {
-    if (!b) return false;
-    const ak = Object.keys(a).filter((k) => k !== "children");
-    const bk = Object.keys(b).filter((k) => k !== "children");
-    if (ak.length !== bk.length) return false;
-    for (const k of ak) if (a[k] !== b[k]) return false;
-    return true;
-  }
-  function Placeholder({
-    name,
-    hintSize,
-    streaming,
-    error
-  }) {
-    const [w, hgt] = (hintSize || "100%,60px").split(",");
-    return h(
-      "div",
-      {
-        className: "sc-placeholder" + (streaming ? " sc-streaming" : ""),
-        style: { width: w.trim(), height: hgt && hgt.trim() },
-        title: name
-      },
-      error ? h(
-        "div",
-        { className: "sc-placeholder-error" },
-        (name ? name + ": " : "") + error
-      ) : null
-    );
-  }
-  function hintToMin(hint) {
-    if (!hint) return void 0;
-    const [w, hgt] = hint.split(",");
-    return { minWidth: w.trim(), minHeight: hgt && hgt.trim() };
-  }
-  function createComponentFactory(registry, ensureFetched) {
-    const React = getReact();
-    const AncestorContext = React.createContext([]);
-    class StreamableComponent extends React.Component {
-      constructor(props) {
-        super(props);
-        __publicField(this, "__name");
-        __publicField(this, "__sub");
-        __publicField(this, "__needsDidMount", false);
-        /** Snapshot of the registry's streaming flags taken at render time —
-         *  builders read it off the RenderCtx (this) to pick placeholder vs
-         *  render-nothing for unresolved values. */
-        __publicField(this, "__streamingNow", false);
-        __publicField(this, "__htmlStreamingNow", false);
-        /** When a construct throws, remember the (class, registry.ver, props)
-         *  triple so render-time reconcile doesn't re-attempt it on every parent
-         *  re-render. A registry bump (new class, template, external module
-         *  resolving via bumpAll) changes `ver` and breaks the memo so an
-         *  env-dependent constructor can self-heal. */
-        __publicField(this, "__failedLogic", null);
-        __publicField(this, "__failedUserProps", null);
-        __publicField(this, "__failedVer", -1);
-        /** Per-instance constructor error — kept here (not on the registry entry)
-         *  so one instance's successful construct can't hide a sibling's failure,
-         *  and a construct can never wipe an eval error `updateJs` recorded on
-         *  `r.logicError`. */
-        __publicField(this, "__ctorError", null);
-        __publicField(this, "logic");
-        this.__name = props.__name;
-        this.state = { __v: 0, __err: null };
-        this.__sub = () => {
-          if (this.state.__err) this.setState({ __err: null });
-          this.forceUpdate();
-        };
-        this.__makeLogic(registry.get(this.__name).Logic, null);
-        ensureFetched(this.__name);
-      }
-      /** Error-boundary hook: a render crash anywhere in this DC's subtree
-       *  (its own template, an x-import'd component, a child DC without its
-       *  own deeper boundary) lands here instead of unmounting the page. */
-      static getDerivedStateFromError(e) {
-        return { __err: e instanceof Error && e.message ? e.message : String(e) };
-      }
-      componentDidCatch(e, info) {
-        console.error(
-          "[dc-runtime] render error in <" + this.__name + ">:",
-          e,
-          info?.componentStack || ""
-        );
-      }
-      /** Instantiate the logic class (or the no-op base) and adopt `prevState`
-       *  over its initial state — used both at mount and on hot-swap. */
-      __makeLogic(Logic, prevState) {
-        const L = Logic || StreamableLogic;
-        try {
-          this.logic = new L(this.__userProps());
-          this.__failedLogic = null;
-          this.__failedUserProps = null;
-          this.__ctorError = null;
-        } catch (e) {
-          console.error(e);
-          this.__failedLogic = Logic;
-          this.__failedUserProps = this.__userProps();
-          this.__failedVer = registry.get(this.__name).ver;
-          this.__ctorError = this.__name + ": " + (e instanceof Error && e.message ? e.message : String(e));
-          this.logic = new StreamableLogic(
-            this.__userProps()
-          );
-        }
-        this.logic.__host = this;
-        if (prevState)
-          this.logic.state = { ...this.logic.state || {}, ...prevState };
-      }
-      /** The props the author's logic + template see — internal __-prefixed
-       *  wiring stripped. */
-      __userProps() {
-        const { __name, __hintSize, __tplId, __hostStyle, ...rest } = this.props;
-        return rest;
-      }
-      __setLogicState(update, cb) {
-        const prev = this.logic.state;
-        const patch = typeof update === "function" ? update(prev) : update;
-        this.logic.state = { ...prev, ...patch };
-        this.setState((s) => ({ __v: s.__v + 1 }), cb);
-      }
-      /** Swap the logic instance when the registry's Logic class changed
-       *  (streaming completion, hot reload). State carries over; didMount
-       *  re-fires after the swap commits so refs exist. */
-      __reconcileLogic() {
-        const r = registry.get(this.__name);
-        const Next = r.Logic;
-        const Cur = this.logic.constructor;
-        if (Next === Cur || !Next && Cur === StreamableLogic || Next === this.__failedLogic && r.ver === this.__failedVer && shallowEqual(this.__userProps(), this.__failedUserProps)) {
-          return;
-        }
-        if (!this.__needsDidMount) {
-          try {
-            this.logic.componentWillUnmount();
-          } catch (e) {
-            console.error(e);
-          }
-        }
-        this.__makeLogic(Next, this.logic.state);
-        this.__needsDidMount = true;
-      }
-      componentDidMount() {
-        registry.get(this.__name).subs.add(this.__sub);
-        try {
-          this.logic.componentDidMount();
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      componentDidUpdate(prevProps) {
-        this.logic.props = this.__userProps();
-        if (this.__needsDidMount) {
-          if (this.state.__err || !registry.get(this.__name).tpl) return;
-          this.__needsDidMount = false;
-          try {
-            this.logic.componentDidMount();
-          } catch (e) {
-            console.error(e);
-          }
-        } else {
-          try {
-            this.logic.componentDidUpdate(prevProps);
-          } catch (e) {
-            console.error(e);
-          }
-        }
-      }
-      componentWillUnmount() {
-        registry.get(this.__name).subs.delete(this.__sub);
-        if (!this.__needsDidMount) {
-          try {
-            this.logic.componentWillUnmount();
-          } catch (e) {
-            console.error(e);
-          }
-        }
-      }
-      render() {
-        const r = registry.get(this.__name);
-        const cls = "sc-host" + (r.htmlStreaming ? " sc-streaming-html" : "") + (r.jsStreaming ? " sc-streaming-js" : "");
-        const hintStyle = r.htmlStreaming ? hintToMin(this.props.__hintSize) : void 0;
-        const hostStyle = this.props.__hostStyle || hintStyle ? { ...hintStyle || {}, ...this.props.__hostStyle || {} } : void 0;
-        const hostBase = {
-          className: cls,
-          style: hostStyle,
-          "data-sc-name": this.__name,
-          "data-dc-tpl": this.props.__tplId
-        };
-        const chain = Array.isArray(this.context) ? this.context : [];
-        if (chain.includes(this.__name)) {
-          const cycle = [
-            ...chain.slice(chain.indexOf(this.__name)),
-            this.__name
-          ].join(" \u2192 ");
-          return h(
-            "div",
-            { ...hostBase, className: cls + " sc-has-error" },
-            h(Placeholder, {
-              name: this.__name,
-              hintSize: this.props.__hintSize,
-              error: "circular import: " + cycle
-            })
-          );
-        }
-        if (this.state.__err) {
-          return h(
-            "div",
-            { ...hostBase, className: cls + " sc-has-error" },
-            h(
-              "div",
-              { className: "sc-logic-error", "data-omelette-chrome": "" },
-              this.__name + ": " + this.state.__err
-            ),
-            h(Placeholder, {
-              name: this.__name,
-              hintSize: this.props.__hintSize,
-              error: this.state.__err
-            })
-          );
-        }
-        this.__reconcileLogic();
-        if (!r.tpl) {
-          return h(
-            "div",
-            hostBase,
-            h(Placeholder, { name: this.__name, hintSize: this.props.__hintSize })
-          );
-        }
-        const userProps = this.__userProps();
-        this.logic.props = userProps;
-        let vals = userProps;
-        let renderErr = r.logicError || this.__ctorError;
-        try {
-          vals = { ...userProps, ...this.logic.renderVals() || {} };
-        } catch (e) {
-          console.error(e);
-          renderErr = this.__name + ".renderVals(): " + (e instanceof Error && e.message ? e.message : String(e));
-        }
-        this.__streamingNow = !!(r.htmlStreaming || r.jsStreaming);
-        this.__htmlStreamingNow = !!r.htmlStreaming;
-        return h(
-          "div",
-          { ...hostBase, className: cls + (renderErr ? " sc-has-error" : "") },
-          renderErr && h(
-            "div",
-            { className: "sc-logic-error", "data-omelette-chrome": "" },
-            renderErr
-          ),
-          h(
-            AncestorContext.Provider,
-            { value: [...chain, this.__name] },
-            r.tpl(vals, this)
-          )
-        );
-      }
-    }
-    __publicField(StreamableComponent, "contextType", AncestorContext);
-    const named = /* @__PURE__ */ new Map();
-    function getDC(name) {
-      const hit = named.get(name);
-      if (hit) return hit;
-      function Dispatcher(p) {
-        const [, setTick] = React.useState(0);
-        React.useEffect(() => {
-          const sub = () => setTick((n) => n + 1);
-          registry.get(name).subs.add(sub);
-          return () => {
-            registry.get(name).subs.delete(sub);
-          };
-        }, []);
-        ensureFetched(name);
-        return h(StreamableComponent, { ...p, __name: name });
-      }
-      Dispatcher.displayName = name;
-      named.set(name, Dispatcher);
-      return Dispatcher;
-    }
-    return {
-      getDC,
-      StreamableComponent
-    };
-  }
-
-  // src/bundled.ts
-  function bundledBlob(url) {
-    const blobs = window.__resourceBlobs;
-    const b = blobs ? blobs[url.split("#")[0]] : void 0;
-    return b instanceof Blob ? b : null;
-  }
-
-  // src/cdn.ts
-  var REACT_URL = "https://unpkg.com/react@18.3.1/umd/react.production.min.js";
-  var REACT_SRI = "sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z";
-  var REACT_DOM_URL = "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js";
-  var REACT_DOM_SRI = "sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1";
-  var BABEL_URL = "https://unpkg.com/@babel/standalone@7.29.0/babel.min.js";
-  var BABEL_SRI = "sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y";
-  function cdnScriptFor(url, sri) {
-    const res = window.__resources;
-    const v = res ? res[url] : void 0;
-    return typeof v === "string" && v ? { src: v } : { src: url, integrity: sri };
-  }
-
-  // src/external.ts
-  var isCustomElementName = (n) => !n.includes(".") && n.includes("-");
-  function isRenderableType(g) {
-    if (typeof g === "function") return !isElementClass(g);
-    return typeof g === "object" && g !== null && typeof g.$$typeof === "symbol";
-  }
-  function resolveDottedPath(root, name) {
-    let cur = root;
-    for (const seg of name.split(".")) {
-      if (cur == null) return void 0;
-      cur = cur[seg];
-    }
-    return cur;
-  }
-  var GLOBAL_POLL_INTERVAL_MS = 50;
-  var GLOBAL_POLL_TIMEOUT_MS = 3e4;
-  function createExternalModules(onResolved) {
-    const cache = /* @__PURE__ */ new Map();
-    let babelLoading = null;
-    const reportedMissing = /* @__PURE__ */ new Map();
-    const polling = /* @__PURE__ */ new Set();
-    function ensureBabel() {
-      if (window.Babel) return Promise.resolve();
-      if (babelLoading) return babelLoading;
-      const babel = cdnScriptFor(BABEL_URL, BABEL_SRI);
-      babelLoading = new Promise((res, rej) => {
-        const s = document.createElement("script");
-        s.src = babel.src;
-        if (babel.integrity) {
-          s.integrity = babel.integrity;
-          s.crossOrigin = "anonymous";
-        }
-        s.onload = () => res();
-        s.onerror = rej;
-        document.head.appendChild(s);
-      });
-      return babelLoading;
-    }
-    const pending = /* @__PURE__ */ new Map();
-    function load(kind, url, after) {
-      const existing = pending.get(url);
-      if (existing) return existing;
-      cache.set(url, null);
-      console.info("[dc-runtime] x-import: loading", url, "(" + kind + ")");
-      const ready = Promise.all([
-        kind === "jsx" ? ensureBabel() : Promise.resolve(),
-        after ?? Promise.resolve()
-      ]);
-      const p = ready.then(() => {
-        const pre = bundledBlob(url);
-        if (pre) return pre.text();
-        return fetch(url).then((r) => {
-          if (!r.ok) throw new Error("HTTP " + r.status);
-          return r.text();
-        });
-      }).then((src) => {
-        const code = kind === "jsx" ? window.Babel.transform(src, {
-          filename: url,
-          presets: ["react", "typescript"]
-        }).code : src;
-        const module = { exports: {} };
-        const before = new Set(Object.keys(window));
-        //! nosemgrep: eval-and-function-constructor
-        new Function("React", "module", "exports", "require", code)(
-          getReact(),
-          module,
-          module.exports,
-          () => ({})
-        );
-        const globals = {};
-        for (const k of Object.keys(window)) {
-          if (!before.has(k) && typeof window[k] === "function") {
-            globals[k] = window[k];
-          }
-        }
-        cache.set(url, { mod: module.exports, globals });
-        console.info(
-          "[dc-runtime] x-import: loaded",
-          url,
-          "\u2014 exports:",
-          Object.keys(module.exports),
-          "window globals:",
-          Object.keys(globals)
-        );
-        onResolved();
-      }).catch((e) => {
-        cache.set(url, {
-          mod: {},
-          globals: {},
-          error: "failed to load: " + (e instanceof Error && e.message ? e.message : String(e))
-        });
-        console.error(
-          "[dc-runtime] x-import: FAILED to load",
-          url,
-          "(" + kind + ")",
-          e
-        );
-        onResolved();
-      });
-      pending.set(url, p);
-      return p;
-    }
-    function resolve2(url, name) {
-      const entry = cache.get(url);
-      if (!entry) return null;
-      const { mod, globals } = entry;
-      const C = mod && mod[name] || globals && globals[name] || typeof window !== "undefined" && window[name] || mod && mod.default;
-      if (typeof C === "function") return C;
-      const key = url + "\0" + name;
-      if (!reportedMissing.has(key)) {
-        reportedMissing.set(
-          key,
-          entry.error || 'no export named "' + name + '" (has: ' + Object.keys(mod).join(", ") + ")"
-        );
-        console.error(
-          "[dc-runtime] x-import: module",
-          url,
-          "loaded but has no component named",
-          JSON.stringify(name),
-          "\u2014 available exports:",
-          Object.keys(mod),
-          "window globals:",
-          Object.keys(globals),
-          ". The module must `module.exports = {" + name + "}` or set `window." + name + "`."
-        );
-      }
-      return null;
-    }
-    function waitForGlobal(name) {
-      if (polling.has(name)) return;
-      polling.add(name);
-      const started = Date.now();
-      const isCE = isCustomElementName(name);
-      const tick = () => {
-        const found = isCE ? customElements.get(name) : isRenderableType(resolveDottedPath(window, name));
-        if (found) {
-          polling.delete(name);
-          onResolved();
-          return;
-        }
-        if (Date.now() - started >= GLOBAL_POLL_TIMEOUT_MS) {
-          console.warn(
-            "[dc-runtime] x-import: global",
-            JSON.stringify(name),
-            "never appeared on window after " + GLOBAL_POLL_TIMEOUT_MS + "ms"
-          );
-          return;
-        }
-        setTimeout(tick, GLOBAL_POLL_INTERVAL_MS);
-      };
-      setTimeout(tick, GLOBAL_POLL_INTERVAL_MS);
-    }
-    function resolveGlobal(url, name) {
-      const isCE = isCustomElementName(name);
-      if (!url) {
-        if (isCE) {
-          if (customElements.get(name)) return name;
-          waitForGlobal(name);
-          return null;
-        }
-        const g2 = resolveDottedPath(window, name);
-        if (isRenderableType(g2)) return g2;
-        waitForGlobal(name);
-        return null;
-      }
-      const entry = cache.get(url);
-      if (!entry) return null;
-      if (isCE && customElements.get(name)) return name;
-      const g = entry.globals[name] ?? resolveDottedPath(window, name);
-      if (isRenderableType(g)) return g;
-      if (name.includes(".")) return null;
-      const key = url + "\0global\0" + name;
-      if (!reportedMissing.has(key)) {
-        reportedMissing.set(key, null);
-        if (isCE && !customElements.get(name)) {
-          console.warn(
-            "[dc-runtime] x-import:",
-            url,
-            "loaded but no custom element",
-            JSON.stringify(name),
-            "is registered and window." + name + " is not a function \u2014 rendering <" + name + "> as an unknown element."
-          );
-        }
-      }
-      return name;
-    }
-    function getError(url, name) {
-      const entry = cache.get(url);
-      if (entry?.error) return entry.error;
-      return reportedMissing.get(url + "\0" + name) || null;
-    }
-    return { load, resolve: resolve2, resolveGlobal, getError };
-  }
-  function isElementClass(g) {
-    try {
-      return typeof g === "function" && typeof HTMLElement !== "undefined" && g.prototype instanceof HTMLElement;
-    } catch {
-      return false;
-    }
-  }
-
-  // src/atomics.ts
-  var ATOMIC_CSS = (
-    // layout
-    ".fx{display:flex}.col{display:flex;flex-direction:column}.grid{display:grid}.ac{align-items:center}.jc{justify-content:center}.jb{justify-content:space-between}.f1{flex:1}.noshrink{flex-shrink:0}.wrap{flex-wrap:wrap}.fw5{font-weight:500}.fw6{font-weight:600}.fw7{font-weight:700}.fw8{font-weight:800}.fs11{font-size:11px}.fs12{font-size:12px}.fs13{font-size:13px}.fs14{font-size:14px}.fs15{font-size:15px}.fs16{font-size:16px}.fs20{font-size:20px}.fs22{font-size:22px}.upper{text-transform:uppercase}.tc{text-align:center}.nowrap{white-space:nowrap}.gap8{gap:8px}.gap10{gap:10px}.gap12{gap:12px}.gap16{gap:16px}.gap24{gap:24px}.m0{margin:0}.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}.posrel{position:relative}.posabs{position:absolute}.round{border-radius:50%}.ohide{overflow:hidden}.bbox{box-sizing:border-box}.pointer{cursor:pointer}.w100{width:100%}.b0{border:none}"
-  );
-
-  // src/helmet.ts
-  var DESIGN_DOC_MODE_RE = /<meta\b[^>]*\bname\s*=\s*["']design_doc_mode["'][^>]*\b(?:content|value)\s*=\s*["'](\w+)["']/i;
-  var CANVAS_BG_LIGHT = "#f0eee6";
-  var CANVAS_BG_DARK = "#2e2c26";
-  function createHelmetManager(doc, isStreaming) {
-    const mounted = /* @__PURE__ */ new Set();
-    const live = /* @__PURE__ */ new Map();
-    let designDocMode = null;
-    let canvasStyleEl = null;
-    let appTheme = "light";
-    try {
-      const ds = doc.documentElement.dataset.theme;
-      appTheme = ds === "dark" || ds === "light" ? ds : new URLSearchParams(doc.defaultView?.location.search ?? "").get(
-        "theme"
-      ) === "dark" ? "dark" : "light";
-    } catch {
-    }
-    function applyCanvasBg() {
-      if (!canvasStyleEl) return;
-      const bg = appTheme === "dark" ? CANVAS_BG_DARK : CANVAS_BG_LIGHT;
-      canvasStyleEl.textContent = `html,body{background:${bg}}#dc-root>.sc-host{position:relative}`;
-    }
-    function postDesignMode(mode) {
-      if (window.parent === window) return;
-      try {
-        window.parent.postMessage({ type: "__dc_design_mode", mode }, "*");
-      } catch {
-      }
-    }
-    function setDesignDocMode(mode) {
-      if (mode === designDocMode) return;
-      designDocMode = mode;
-      postDesignMode(mode);
-      if (mode === "canvas") {
-        doc.documentElement.setAttribute("data-dc-canvas", "");
-        canvasStyleEl = doc.createElement("style");
-        canvasStyleEl.setAttribute("data-dc-canvas", "");
-        applyCanvasBg();
-        doc.head.appendChild(canvasStyleEl);
-      } else {
-        doc.documentElement.removeAttribute("data-dc-canvas");
-        canvasStyleEl?.remove();
-        canvasStyleEl = null;
-      }
-    }
-    window.addEventListener("message", (e) => {
-      const type = e.data && e.data.type;
-      if (type === "__dc_theme") {
-        const t = e.data.theme;
-        if (t === "light" || t === "dark") {
-          appTheme = t;
-          applyCanvasBg();
-        }
-        return;
-      }
-      if (!designDocMode || type !== "__dc_probe") return;
-      postDesignMode(designDocMode);
-    });
-    function compile(node) {
-      const raw = [...node.children];
-      const helmetClosed = node.nextSibling != null || node.parentNode?.nextSibling != null;
-      if (node.hasAttribute("data-dc-atomics") && !mounted.has("__dc-atomics")) {
-        mounted.add("__dc-atomics");
-        const el = doc.createElement("style");
-        el.id = "__dc-atomics";
-        el.textContent = ATOMIC_CSS;
-        doc.head.appendChild(el);
-      }
-      return (_vals, ctx) => {
-        const name = ctx && ctx.__name || "";
-        const streaming = !!(name && isStreaming(name));
-        for (let i = 0; i < raw.length; i++) {
-          const child = raw[i];
-          const tag = child.tagName;
-          const mayBePartial = streaming && !helmetClosed && i === raw.length - 1;
-          if (tag === "SCRIPT") {
-            if (mayBePartial) continue;
-            const key = "SCRIPT|" + (child.getAttribute("src") || child.textContent || "");
-            if (mounted.has(key)) continue;
-            mounted.add(key);
-            const el = doc.createElement("script");
-            for (const { name: an, value } of [...child.attributes])
-              el.setAttribute(an, value);
-            if (child.textContent) el.textContent = child.textContent;
-            doc.head.appendChild(el);
-          } else if (tag === "LINK" || tag === "META") {
-            if (mayBePartial) continue;
-            const key = tag + "|" + (child.getAttribute("href") || child.getAttribute("src") || child.outerHTML);
-            if (mounted.has(key)) continue;
-            mounted.add(key);
-            if (tag === "LINK") {
-              const rel = (child.getAttribute("rel") || "").toLowerCase().split(/\s+/);
-              const href = (child.getAttribute("href") || "").trim();
-              const res = window.__resources;
-              const pre = res && rel.includes("stylesheet") && !rel.includes("alternate") ? res[href] : void 0;
-              const blob = typeof pre === "string" && pre ? bundledBlob(pre) : null;
-              if (blob) {
-                const el = doc.createElement("style");
-                if (child.hasAttribute("disabled")) {
-                  el.setAttribute("media", "not all");
-                } else if (child.getAttribute("media")) {
-                  el.setAttribute("media", child.getAttribute("media"));
-                }
-                if (child.getAttribute("title"))
-                  el.setAttribute("title", child.getAttribute("title"));
-                void blob.text().then((css) => {
-                  el.textContent = css;
-                });
-                doc.head.appendChild(el);
-                continue;
-              }
-            }
-            doc.head.appendChild(child.cloneNode(true));
-          } else {
-            const key = name + "|" + i;
-            let el = live.get(key);
-            if (!el || el.tagName !== tag) {
-              if (el) el.remove();
-              el = doc.createElement(tag.toLowerCase());
-              live.set(key, el);
-              doc.head.appendChild(el);
-            }
-            for (const { name: an, value } of [...child.attributes]) {
-              if (el.getAttribute(an) !== value) el.setAttribute(an, value);
-            }
-            if (el.textContent !== child.textContent)
-              el.textContent = child.textContent;
-          }
-        }
-        return null;
-      };
-    }
-    return { compile, setDesignDocMode };
-  }
-
-  // src/pseudo.ts
-  function scanUnquotedUrl(css, i) {
-    if (css[i] !== "u" && css[i] !== "U" || css.slice(i, i + 4).toLowerCase() !== "url(" || /[a-z0-9_-]/i.test(css[i - 1] ?? "")) {
-      return -1;
-    }
-    let j = i + 4;
-    while (j < css.length && /\s/.test(css[j])) j++;
-    if (css[j] === '"' || css[j] === "'") return -1;
-    while (j < css.length && css[j] !== ")") {
-      if (css[j] === "\\") j++;
-      j++;
-    }
-    return j < css.length ? j + 1 : css.length;
-  }
-  function stripComments(css) {
-    let out = "";
-    let quote = "";
-    for (let i = 0; i < css.length; i++) {
-      const c = css[i];
-      if (quote) {
-        if (c === "\\") {
-          out += c + (css[i + 1] ?? "");
-          i++;
-          continue;
-        }
-        if (c === quote) quote = "";
-        out += c;
-      } else if (c === "'" || c === '"') {
-        quote = c;
-        out += c;
-      } else if (c === "/" && css[i + 1] === "*") {
-        const end = css.indexOf("*/", i + 2);
-        i = end === -1 ? css.length : end + 1;
-        out += " ";
-      } else {
-        const end = scanUnquotedUrl(css, i);
-        if (end === -1) out += c;
-        else {
-          out += css.slice(i, end);
-          i = end - 1;
-        }
-      }
-    }
-    return out;
-  }
-  function importantify(css) {
-    css = stripComments(css);
-    const decls = [];
-    let start = 0;
-    let depth = 0;
-    let quote = "";
-    for (let i = 0; i < css.length; i++) {
-      const c = css[i];
-      if (quote) {
-        if (c === "\\") i++;
-        else if (c === quote) quote = "";
-      } else if (c === "'" || c === '"') quote = c;
-      else if (c === "(") depth++;
-      else if (c === ")") depth = Math.max(0, depth - 1);
-      else if (c === ";" && depth === 0) {
-        decls.push(css.slice(start, i));
-        start = i + 1;
-      } else {
-        const end = scanUnquotedUrl(css, i);
-        if (end !== -1) i = end - 1;
-      }
-    }
-    decls.push(css.slice(start));
-    return decls.map((d) => d.trim()).filter(Boolean).map((d) => /!\s*important$/i.test(d) ? d : d + " !important").join(";");
-  }
-  function createPseudoSheet(doc) {
-    let el = null;
-    const cache = /* @__PURE__ */ new Map();
-    let n = 0;
-    return (pseudo, css) => {
-      const k = pseudo + "|" + css;
-      const hit = cache.get(k);
-      if (hit) return hit;
-      if (!el) {
-        el = doc.createElement("style");
-        doc.head.appendChild(el);
-      }
-      const cls = "scp" + (n++).toString(36);
-      const isPseudoElement = pseudo === "before" || pseudo === "after";
-      const sel = isPseudoElement ? "." + cls + "::" + pseudo : "." + cls + ":" + pseudo;
-      el.sheet.insertRule(
-        sel + "{" + (isPseudoElement ? css : importantify(css)) + "}",
-        el.sheet.cssRules.length
-      );
-      cache.set(k, cls);
-      return cls;
-    };
-  }
-
-  // src/registry.ts
-  function createRegistry() {
-    const entries = /* @__PURE__ */ Object.create(null);
-    function get(name) {
-      return entries[name] || (entries[name] = {
-        html: "",
-        tpl: null,
-        Logic: null,
-        jsStreaming: false,
-        htmlStreaming: false,
-        ver: 0,
-        subs: /* @__PURE__ */ new Set(),
-        fetched: false
-      });
-    }
-    function bump(name) {
-      const r = get(name);
-      r.ver++;
-      for (const fn of r.subs) fn();
-    }
-    return {
-      entries,
-      get,
-      bump,
-      bumpAll() {
-        for (const n in entries) bump(n);
-      }
-    };
-  }
-
-  // src/runtime.ts
-  var COMPONENT_DIR = ".";
-  function createRuntime(doc = document) {
-    const registry = createRegistry();
-    const pseudoClass = createPseudoSheet(doc);
-    const helmet = createHelmetManager(
-      doc,
-      (name) => registry.get(name).htmlStreaming
-    );
-    const external = createExternalModules(() => registry.bumpAll());
-    const factory = createComponentFactory(registry, ensureFetched);
-    const host = {
-      component: (name) => factory.getDC(name),
-      placeholder: (props) => h(Placeholder, props),
-      helmet: (node) => helmet.compile(node),
-      loadExternal: (kind, url, after) => external.load(kind, url, after),
-      resolveExternal: (url, name) => external.resolve(url, name),
-      resolveExternalGlobal: (url, name) => external.resolveGlobal(url, name),
-      resolveExternalError: (url, name) => external.getError(url, name),
-      pseudoClass
-    };
-    function ensureFetched(name) {
-      const r = registry.get(name);
-      if (r.fetched) return;
-      r.fetched = true;
-      const url = COMPONENT_DIR + "/" + encodeURIComponent(name) + ".dc.html";
-      const res = window.__resources;
-      const pre = res ? res[url] : void 0;
-      const target = typeof pre === "string" && pre ? pre : url;
-      const blob = bundledBlob(target);
-      (blob ? blob.text() : fetch(target).then((res2) => {
-        if (!res2.ok) {
-          console.error(
-            '[dc-runtime] sibling fetch for "' + name + '" failed:',
-            url,
-            "returned",
-            res2.status,
-            "\u2014 the reference renders as an empty placeholder."
-          );
-          return "";
-        }
-        return res2.text();
-      })).then((t) => {
-        if (!t) return;
-        const parsed = parseDcText(t);
-        if (!parsed) {
-          console.error(
-            '[dc-runtime] sibling fetch for "' + name + '":',
-            url,
-            "has no <x-dc> block \u2014 not a Design Component."
-          );
-          return;
-        }
-        if (parsed.props) r.propsMeta = parsed.props;
-        if (parsed.preview) r.preview = parsed.preview;
-        if (parsed.template && !r.html) updateHtml(name, parsed.template);
-        if (parsed.js && !r.Logic) updateJs(name, parsed.js);
-      }).catch(
-        (e) => console.error(
-          '[dc-runtime] sibling fetch for "' + name + '" threw:',
-          url,
-          e
-        )
-      );
-    }
-    let rootName = null;
-    function updateHtml(name, html) {
-      const r = registry.get(name);
-      r.html = html;
-      if (name === rootName) {
-        const mode = DESIGN_DOC_MODE_RE.exec(html)?.[1] ?? null;
-        if (mode || !r.htmlStreaming) helmet.setDesignDocMode(mode);
-      }
-      try {
-        r.tpl = compileTemplate(html, host);
-      } catch (e) {
-        console.error("[dc-runtime] template compile FAILED for", name, e);
-      }
-      registry.bump(name);
-    }
-    function updateJs(name, src) {
-      const r = registry.get(name);
-      const seq = r.jsSeq = (r.jsSeq || 0) + 1;
-      try {
-        const Cls = evalDcLogic(src);
-        if (r.jsSeq !== seq) return;
-        if (typeof Cls !== "function") {
-          r.logicError = name + ".dc.html: <script data-dc-script> must define `class Component extends DCLogic`";
-        } else {
-          r.logicError = null;
-          r.Logic = Cls;
-        }
-      } catch (e) {
-        if (r.jsSeq !== seq) return;
-        console.error(
-          "[dc-runtime] logic class eval FAILED for",
-          name,
-          "\u2014 the template renders with props only.",
-          e
-        );
-        r.logicError = name + ": " + (e instanceof Error && e.message ? e.message : String(e));
-      }
-      registry.bump(name);
-    }
-    function setStreaming(name, kind, on) {
-      const r = registry.get(name);
-      if (kind === "html") r.htmlStreaming = !!on;
-      else r.jsStreaming = !!on;
-      let any = false;
-      for (const n in registry.entries) {
-        const e = registry.entries[n];
-        if (e && (e.htmlStreaming || e.jsStreaming)) {
-          any = true;
-          break;
-        }
-      }
-      doc.documentElement.classList.toggle("sc-dc-streaming", any);
-      registry.bump(name);
-    }
-    function dcUpdate(name, kind, content, streaming) {
-      if (streaming) registry.get(name).fetched = true;
-      if (kind === "html") {
-        setStreaming(name, "html", !!streaming);
-        updateHtml(name, content);
-      } else if (kind === "js") {
-        setStreaming(name, "js", !!streaming);
-        if (!streaming) updateJs(name, content);
-      } else if (kind === "props") {
-        const { props, preview } = parseDataProps(content);
-        const r = registry.get(name);
-        r.propsMeta = props ?? void 0;
-        r.preview = preview;
-        registry.bump(name);
-      }
-    }
-    function setProps(name, overrides) {
-      registry.get(name).propOverrides = overrides && typeof overrides === "object" ? { ...overrides } : null;
-      registry.bump(name);
-    }
-    function adoptParsed(name, parsed) {
-      if (!parsed) return;
-      const r = registry.get(name);
-      if (parsed.props) r.propsMeta = parsed.props;
-      if (parsed.preview) r.preview = parsed.preview;
-      if (parsed.template) updateHtml(name, parsed.template);
-      if (parsed.js) updateJs(name, parsed.js);
-    }
-    return {
-      registry,
-      getDC: factory.getDC,
-      updateHtml,
-      updateJs,
-      dcUpdate,
-      setProps,
-      adoptParsed,
-      setRootName: (name) => {
-        rootName = name;
-      },
-      markFetched: (name) => {
-        registry.get(name).fetched = true;
-      },
-      annotatedTemplate: (name) => {
-        const r = registry.get(name);
-        return r.tpl && r.tpl.__annotated || null;
-      },
-      templateSource: (name) => registry.get(name).html || null,
-      StreamableLogic
-    };
-  }
-
-  // src/stream-state.ts
-  function createStreamTracker(staleMs = 6e4, now = Date.now) {
-    const since = /* @__PURE__ */ new Map();
-    const liveOne = (n) => {
-      const t = since.get(n);
-      if (t === void 0) return false;
-      if (now() - t > staleMs) {
-        since.delete(n);
-        return false;
-      }
-      return true;
-    };
-    return {
-      push(name, streaming, viewportKey) {
-        if (viewportKey === "dc-model") return;
-        if (streaming) since.set(name, now());
-        else since.delete(name);
-      },
-      live(name) {
-        if (name !== void 0) return liveOne(name);
-        for (const n of [...since.keys()]) if (liveOne(n)) return true;
-        return false;
-      }
-    };
-  }
-
-  // src/index.ts
-  function hideRawTemplate() {
-    const s = document.createElement("style");
-    s.textContent = "x-dc{display:none!important}";
-    document.head.appendChild(s);
-  }
-  function loadScript(src, integrity) {
-    return new Promise((resolve2, reject) => {
-      //! nosemgrep: create-script-element
-      const s = document.createElement("script");
-      s.src = src;
-      if (integrity) {
-        s.integrity = integrity;
-        s.crossOrigin = "anonymous";
-      }
-      s.async = false;
-      s.onload = () => resolve2();
-      s.onerror = () => reject(new Error(`failed to load ${src}`));
-      document.head.appendChild(s);
-    });
-  }
-  function loadReactUmd() {
-    const w = window;
-    if (w.React && w.ReactDOM) return Promise.resolve();
-    const react = cdnScriptFor(REACT_URL, REACT_SRI);
-    const reactDom = cdnScriptFor(REACT_DOM_URL, REACT_DOM_SRI);
-    return Promise.all([
-      loadScript(react.src, react.integrity),
-      loadScript(reactDom.src, reactDom.integrity)
-    ]).then(() => void 0);
-  }
-  function init() {
-    const runtime = createRuntime(document);
-    let rootName = "Root";
-    const baseCss = document.createElement("style");
-    baseCss.textContent = BASE_CSS;
-    document.head.prepend(baseCss);
-    const notifyHost = () => {
-      if (window.parent === window) return;
-      const r = runtime.registry.entries[rootName];
-      try {
-        window.parent.postMessage(
-          {
-            type: "__dc_booted",
-            rootName,
-            propsMeta: r && r.propsMeta || null,
-            preview: r && r.preview || null
-          },
-          "*"
-        );
-      } catch {
-      }
-    };
-    const streams = createStreamTracker();
-    const api = {
-      __dcUpdate: (name, kind, content, streaming, viewportKey) => {
-        streams.push(name, streaming, viewportKey);
-        runtime.dcUpdate(name, kind, content, streaming);
-        if (name === rootName && !streaming && kind === "props") notifyHost();
-      },
-      __dcStreaming: (name) => streams.live(name),
-      __dcSetProps: (name, overrides) => runtime.setProps(name, overrides),
-      /** Name of the component currently mounted as the page root — DC tools
-       *  push their template-stream here when targeting "the open page". */
-      __dcRootName: () => rootName,
-      /** Editor bridge — the encoded, `data-dc-tpl`-annotated template source.
-       *  The host editor parses this into its own template DOM so it can map a
-       *  rendered node (carrying the same `data-dc-tpl`) back to the source
-       *  node that emitted it. Returns the encoded form (`sc-camel-*` attrs,
-       *  `<sc-raw-*>`/`<sc-helmet>` tags); the editor decodes on serialize. */
-      __dcAnnotatedTemplate: (name) => runtime.annotatedTemplate(name),
-      /** Editor bridge — the *original* (decoded) template source. */
-      __dcTemplateSource: (name) => runtime.templateSource(name),
-      __dcBoot: () => {
-        rootName = boot(runtime, document) ?? rootName;
-        notifyHost();
-      },
-      __dcRegistry: runtime.registry.entries,
-      getDC: (name) => runtime.getDC(name),
-      // `DCLogic` is the documented base class name; `StreamableLogic` is the
-      // implementation alias kept for any project that already references it.
-      DCLogic: runtime.StreamableLogic,
-      StreamableLogic: runtime.StreamableLogic
-    };
-    Object.assign(window, api);
-    window.__dcContentKeyed = true;
-    if (document.readyState !== "loading") api.__dcBoot();
-    else document.addEventListener("DOMContentLoaded", () => api.__dcBoot());
-  }
-  hideRawTemplate();
-  loadReactUmd().then(init).catch((err) => {
-    console.error("[dc] failed to load React or boot:", err);
-    throw err;
-  });
-})();
-
-</script>
+<script src="support.js"></script>
 </head>
 <body>
 <x-dc>
 <helmet>
 <template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#B42318"></rect><rect x="30" y="58" width="9" height="12" fill="#FAF8F4"></rect><rect x="45" y="44" width="9" height="26" fill="#FAF8F4"></rect><rect x="60" y="30" width="9" height="40" fill="#FAF8F4"></rect></svg></template>
-<style></style>
+<style>/*  The source theme sets Arial/Helvetica — system faces, no webfont files were provided.
+   Arimo is metric-compatible with Arial and loaded as the cross-platform fallback. */
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/8a76c39a-2965-4b31-8cd3-6a52ab3abb1c.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/9e8330c4-c34b-402b-8667-99a3de5f4896.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/566bde10-a816-471e-9fda-9f6f498b042c.woff2") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/8d4bbc39-0518-4e84-a98b-6785742ba0a2.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* hebrew */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/35043455-6a65-4c6a-ae8d-c3a479f690df.woff2") format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/72140537-f231-4e5b-93c0-4604596df7ef.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/c91558f3-6417-491b-ba48-83adf46a24d9.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/33a6d353-ad89-4819-a4f5-53e835b7f999.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/8a76c39a-2965-4b31-8cd3-6a52ab3abb1c.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/9e8330c4-c34b-402b-8667-99a3de5f4896.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/566bde10-a816-471e-9fda-9f6f498b042c.woff2") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/8d4bbc39-0518-4e84-a98b-6785742ba0a2.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* hebrew */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/35043455-6a65-4c6a-ae8d-c3a479f690df.woff2") format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/72140537-f231-4e5b-93c0-4604596df7ef.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/c91558f3-6417-491b-ba48-83adf46a24d9.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/33a6d353-ad89-4819-a4f5-53e835b7f999.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/8a76c39a-2965-4b31-8cd3-6a52ab3abb1c.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/9e8330c4-c34b-402b-8667-99a3de5f4896.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/566bde10-a816-471e-9fda-9f6f498b042c.woff2") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/8d4bbc39-0518-4e84-a98b-6785742ba0a2.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* hebrew */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/35043455-6a65-4c6a-ae8d-c3a479f690df.woff2") format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/72140537-f231-4e5b-93c0-4604596df7ef.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/c91558f3-6417-491b-ba48-83adf46a24d9.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/33a6d353-ad89-4819-a4f5-53e835b7f999.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/8a76c39a-2965-4b31-8cd3-6a52ab3abb1c.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/9e8330c4-c34b-402b-8667-99a3de5f4896.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/566bde10-a816-471e-9fda-9f6f498b042c.woff2") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/8d4bbc39-0518-4e84-a98b-6785742ba0a2.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* hebrew */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/35043455-6a65-4c6a-ae8d-c3a479f690df.woff2") format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/72140537-f231-4e5b-93c0-4604596df7ef.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/c91558f3-6417-491b-ba48-83adf46a24d9.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/33a6d353-ad89-4819-a4f5-53e835b7f999.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root{--font-stack:Arial,Arimo,Helvetica,sans-serif}
+</style>
 <style>/* Palette traced from "MEDIA WASTE AUDIT · 2025 – 2026.pptx" via theme-bluestone.css:
    navy grounds, a blue ramp from #12294F to #EEF2FB, coral for warnings. */
 :root{
@@ -2101,6 +476,298 @@ table{border-collapse:collapse}
 .tabular{font-variant-numeric:tabular-nums}
 </style>
 <style>/* BlueStone Performance — design system entry point. Consumers link this one file. */
+/* The source theme sets Arial/Helvetica — system faces, no webfont files were provided.
+   Arimo is metric-compatible with Arial and loaded as the cross-platform fallback. */
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/8a76c39a-2965-4b31-8cd3-6a52ab3abb1c.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/9e8330c4-c34b-402b-8667-99a3de5f4896.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/566bde10-a816-471e-9fda-9f6f498b042c.woff2") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/8d4bbc39-0518-4e84-a98b-6785742ba0a2.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* hebrew */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/35043455-6a65-4c6a-ae8d-c3a479f690df.woff2") format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/72140537-f231-4e5b-93c0-4604596df7ef.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/c91558f3-6417-491b-ba48-83adf46a24d9.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/33a6d353-ad89-4819-a4f5-53e835b7f999.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/8a76c39a-2965-4b31-8cd3-6a52ab3abb1c.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/9e8330c4-c34b-402b-8667-99a3de5f4896.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/566bde10-a816-471e-9fda-9f6f498b042c.woff2") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/8d4bbc39-0518-4e84-a98b-6785742ba0a2.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* hebrew */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/35043455-6a65-4c6a-ae8d-c3a479f690df.woff2") format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/72140537-f231-4e5b-93c0-4604596df7ef.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/c91558f3-6417-491b-ba48-83adf46a24d9.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/33a6d353-ad89-4819-a4f5-53e835b7f999.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/8a76c39a-2965-4b31-8cd3-6a52ab3abb1c.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/9e8330c4-c34b-402b-8667-99a3de5f4896.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/566bde10-a816-471e-9fda-9f6f498b042c.woff2") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/8d4bbc39-0518-4e84-a98b-6785742ba0a2.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* hebrew */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/35043455-6a65-4c6a-ae8d-c3a479f690df.woff2") format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/72140537-f231-4e5b-93c0-4604596df7ef.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/c91558f3-6417-491b-ba48-83adf46a24d9.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/33a6d353-ad89-4819-a4f5-53e835b7f999.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/8a76c39a-2965-4b31-8cd3-6a52ab3abb1c.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/9e8330c4-c34b-402b-8667-99a3de5f4896.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/566bde10-a816-471e-9fda-9f6f498b042c.woff2") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/8d4bbc39-0518-4e84-a98b-6785742ba0a2.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* hebrew */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/35043455-6a65-4c6a-ae8d-c3a479f690df.woff2") format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/72140537-f231-4e5b-93c0-4604596df7ef.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/c91558f3-6417-491b-ba48-83adf46a24d9.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Arimo';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/33a6d353-ad89-4819-a4f5-53e835b7f999.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root{--font-stack:Arial,Arimo,Helvetica,sans-serif}
 
 /* Palette traced from "MEDIA WASTE AUDIT · 2025 – 2026.pptx" via theme-bluestone.css:
    navy grounds, a blue ramp from #12294F to #EEF2FB, coral for warnings. */
@@ -2277,2303 +944,279 @@ table{border-collapse:collapse}
 .tabular{font-variant-numeric:tabular-nums}
 
 </style>
-<script>
-/* @ds-bundle: {"format":4,"namespace":"BlueStonePerformanceDesignSystem_fd579b","components":[{"name":"BarPairChart","sourcePath":"components/charts/BarPairChart.jsx"},{"name":"FunnelRow","sourcePath":"components/charts/FunnelRow.jsx"},{"name":"Legend","sourcePath":"components/charts/Legend.jsx"},{"name":"ScatterPlot","sourcePath":"components/charts/ScatterPlot.jsx"},{"name":"ShareBar","sourcePath":"components/charts/ShareBar.jsx"},{"name":"TrendLine","sourcePath":"components/charts/TrendLine.jsx"},{"name":"Button","sourcePath":"components/core/Button.jsx"},{"name":"Card","sourcePath":"components/core/Card.jsx"},{"name":"CardHeader","sourcePath":"components/core/Card.jsx"},{"name":"DataTable","sourcePath":"components/core/DataTable.jsx"},{"name":"DataBar","sourcePath":"components/core/DataTable.jsx"},{"name":"Dialog","sourcePath":"components/core/Dialog.jsx"},{"name":"Input","sourcePath":"components/core/Input.jsx"},{"name":"Radio","sourcePath":"components/core/Radio.jsx"},{"name":"SegmentedControl","sourcePath":"components/core/SegmentedControl.jsx"},{"name":"Tag","sourcePath":"components/core/Tag.jsx"},{"name":"AlertRow","sourcePath":"components/dashboard/AlertRow.jsx"},{"name":"FilterChips","sourcePath":"components/dashboard/FilterChips.jsx"},{"name":"Footnote","sourcePath":"components/dashboard/Footnote.jsx"},{"name":"KpiCard","sourcePath":"components/dashboard/KpiCard.jsx"},{"name":"NavRail","sourcePath":"components/dashboard/NavRail.jsx"},{"name":"PacingBar","sourcePath":"components/dashboard/PacingBar.jsx"},{"name":"PageHeader","sourcePath":"components/dashboard/PageHeader.jsx"},{"name":"TargetCard","sourcePath":"components/dashboard/TargetCard.jsx"}],"sourceHashes":{"components/charts/BarPairChart.jsx":"0c2f1c84b73f","components/charts/FunnelRow.jsx":"ff994214d5bb","components/charts/Legend.jsx":"eab7555d9d6e","components/charts/ScatterPlot.jsx":"bd579c5c79e2","components/charts/ShareBar.jsx":"c31088e29bc0","components/charts/TrendLine.jsx":"2849ea095a9e","components/core/Button.jsx":"1af4243ddf81","components/core/Card.jsx":"c3f1dafb5f99","components/core/DataTable.jsx":"11074e42c078","components/core/Dialog.jsx":"3befb627c90c","components/core/Input.jsx":"38328bb43c52","components/core/Radio.jsx":"7750a67d81b1","components/core/SegmentedControl.jsx":"401603839f74","components/core/Tag.jsx":"2d27d909c586","components/dashboard/AlertRow.jsx":"b4a37aa404e0","components/dashboard/FilterChips.jsx":"c63dab41eaa6","components/dashboard/Footnote.jsx":"cff49a600f87","components/dashboard/KpiCard.jsx":"4c2978022e92","components/dashboard/NavRail.jsx":"b41335195b06","components/dashboard/PacingBar.jsx":"aa6bca96fa68","components/dashboard/PageHeader.jsx":"3d8bd0af291b","components/dashboard/TargetCard.jsx":"6316d6d3e50c","ui_kits/performance_dashboard/Screens.jsx":"771af0105c4b","ui_kits/performance_dashboard/data.js":"ce9ea396a3b4"},"inlinedExternals":[],"unexposedExports":[]} */
-
-(() => {
-
-const __ds_ns = (window.BlueStonePerformanceDesignSystem_fd579b = window.BlueStonePerformanceDesignSystem_fd579b || {});
-
-const __ds_scope = {};
-
-(__ds_ns.__errors = __ds_ns.__errors || []);
-
-// hover tooltip shared by chart components
-window.__DSTip = function ({ left, top, title, rows, flip, above }) {
-  const tx = above ? '-50%' : (flip ? 'calc(-100% - 14px)' : '14px');
-  const ty = above ? 'calc(-100% - 10px)' : '-50%';
-  return React.createElement('div', { style: { position: 'absolute', left, top, transform: 'translate(' + tx + ',' + ty + ')', zIndex: 30, pointerEvents: 'none', background: '#1F1B17', color: '#FAF8F4', borderRadius: 6, padding: '8px 10px', minWidth: 150, boxShadow: '0 6px 20px rgba(31,27,23,0.22)', display: 'flex', flexDirection: 'column', gap: 4, fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' } },
-    title && React.createElement('div', { style: { fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#B8B0A6', paddingBottom: 2 } }, title),
-    (rows || []).map((r, i) => React.createElement('div', { key: i, style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 } },
-      r.color && React.createElement('span', { style: { width: 8, height: 8, borderRadius: 2, background: r.color, flex: 'none' } }),
-      React.createElement('span', { style: { color: '#D8D2C9' } }, r.label),
-      React.createElement('span', { style: { marginLeft: 'auto', paddingLeft: 12, fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: r.valueColor || '#FAF8F4' } }, r.value))));
-};
-// components/charts/BarPairChart.jsx
-try { (() => {
-function BarPairChart({ data = [], height = 210, activeKey, style }) {
-  const [hov, setHov] = React.useState(-1);
-  const maxA = Math.max.apply(null, data.map(d => d.a || 0).concat([1]));
-  const maxB = Math.max.apply(null, data.map(d => d.b || 0).concat([1]));
-  const n = data.length || 1;
-  const hd = hov >= 0 ? data[hov] : null;
-  return React.createElement('div', { style: { position: 'relative', ...style }, onMouseLeave: () => setHov(-1) },
-    React.createElement('div', { style: { display: 'flex', alignItems: 'flex-end', gap: 'var(--space-4)', height } },
-      data.map((d, i) => React.createElement('div', { key: d.key || i, onMouseEnter: () => setHov(i), style: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 'var(--space-2)', height: '100%', cursor: 'default', opacity: hov >= 0 && hov !== i ? 0.4 : 1, transition: 'opacity 120ms' } },
-        React.createElement('div', { style: { fontSize: 11, textAlign: 'center', color: hov === i ? 'var(--color-text)' : 'var(--color-neutral-400)', fontVariantNumeric: 'tabular-nums' } }, d.topLabel),
-        React.createElement('div', { style: { display: 'flex', alignItems: 'flex-end', gap: 3, height: height - 60, borderRadius: 4, background: hov === i ? 'var(--state-row-hover)' : 'transparent' } },
-          React.createElement('div', { style: { flex: 1, background: 'var(--series-nmv)', borderRadius: '3px 3px 0 0', height: ((d.a || 0) / maxA * 100).toFixed(1) + '%' } }),
-          React.createElement('div', { style: { flex: 1, background: 'var(--series-cost)', borderRadius: '3px 3px 0 0', height: ((d.b || 0) / maxB * 100).toFixed(1) + '%' } })),
-        React.createElement('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, paddingTop: 'var(--space-1)', borderTop: '1px solid var(--border-hairline)' } },
-          React.createElement('span', { style: { fontSize: 12, color: d.key === activeKey || hov === i ? 'var(--color-accent)' : 'var(--color-neutral-400)' } }, d.label),
-          d.subLabel && React.createElement('span', { style: { fontSize: 10.5, color: 'var(--text-faint)', fontVariantNumeric: 'tabular-nums' } }, d.subLabel))))),
-    hd && React.createElement(window.__DSTip, Object.assign({ left: ((hov + 0.5) / n * 100) + '%', top: height * 0.45, flip: (hov + 0.5) / n > 0.6 }, hd.tip || { title: hd.label, rows: [{ color: 'var(--series-nmv)', label: 'A', value: String(hd.a) }, { color: 'var(--series-cost)', label: 'B', value: String(hd.b) }] })));
-}
-Object.assign(__ds_scope, { BarPairChart });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/charts/BarPairChart.jsx", error: String((e && e.message) || e) }); }
-
-// components/charts/FunnelRow.jsx
-try { (() => {
-function FunnelRow({ name, rates, steps = [], style }) {
-  const [hov, setHov] = React.useState(-1);
-  const base = steps.length && steps[0].share ? steps[0].share : 1;
-  return React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', ...style } },
-    React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' } },
-      React.createElement('span', { style: { fontSize: 13 } }, name),
-      React.createElement('span', { style: { fontSize: 11.5, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' } }, rates)),
-    steps.map((s, i) => React.createElement('div', { key: i, onMouseEnter: () => setHov(i), onMouseLeave: () => setHov(-1), style: { position: 'relative', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' } },
-      React.createElement('div', { style: { flex: 1, minWidth: 0, height: 'var(--bar-row)', borderRadius: 'var(--radius-sm)', background: 'var(--surface-inset)', overflow: 'hidden', boxShadow: hov === i ? 'inset 0 0 0 1px var(--border-strong)' : 'none' } },
-        React.createElement('div', { style: { height: '100%', borderRadius: 'var(--radius-sm)', background: s.fill || 'var(--color-accent-700)', width: (s.share * 100).toFixed(1) + '%', filter: hov === i ? 'brightness(0.9)' : 'none' } })),
-      React.createElement('span', { style: { width: 104, flex: 'none', fontSize: 11.5, color: hov === i ? 'var(--color-text)' : 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', textAlign: 'right' } }, s.text),
-      hov === i && React.createElement(window.__DSTip, Object.assign({ left: Math.min(Math.max(s.share * 100, 4), 70) + '%', top: '50%', flip: false }, s.tip || { title: name, rows: [{ color: s.fill, label: s.text, value: (s.share / base * 100).toFixed(2) + '% of first step' }] })))));
-}
-Object.assign(__ds_scope, { FunnelRow });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/charts/FunnelRow.jsx", error: String((e && e.message) || e) }); }
-
-// components/charts/Legend.jsx
-try { (() => {
-function Legend({
-  items = [],
-  shape = 'square',
-  style
-}) {
-  return React.createElement('div', {
-    style: {
-      display: 'flex',
-      gap: 'var(--space-4)',
-      fontSize: 11,
-      color: 'var(--text-muted)',
-      flexWrap: 'wrap',
-      ...style
-    }
-  }, items.map((it, i) => React.createElement('span', {
-    key: i,
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 5,
-      whiteSpace: 'nowrap'
-    }
-  }, React.createElement('span', {
-    style: {
-      width: 9,
-      height: 9,
-      display: 'block',
-      borderRadius: shape === 'dot' ? '50%' : 2,
-      background: it.color
-    }
-  }), it.label)));
-}
-Object.assign(__ds_scope, { Legend });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/charts/Legend.jsx", error: String((e && e.message) || e) }); }
-
-// components/charts/ScatterPlot.jsx
-try { (() => {
-function ScatterPlot({ points = [], xTicks = [], yTicks = [], target, height = 300, note, style }) {
-  const [hov, setHov] = React.useState(-1);
-  const L = 46, R = 512, T = 12, B = 256;
-  const px = x => (L + x * (R - L)).toFixed(1);
-  const py = y => (B - y * (B - T)).toFixed(1);
-  const hp = hov >= 0 ? points[hov] : null;
-  const fs = { fontSize: 10, fontFamily: 'var(--font-body)' };
-  return React.createElement('div', { style: { position: 'relative', ...style }, onMouseLeave: () => setHov(-1) },
-    React.createElement('svg', { viewBox: '0 0 520 300', style: { width: '100%', height, display: 'block' } },
-      React.createElement('line', { x1: L, y1: B, x2: R, y2: B, stroke: 'var(--axis-line)' }),
-      React.createElement('line', { x1: L, y1: T, x2: L, y2: B, stroke: 'var(--axis-line)' }),
-      target !== undefined && React.createElement('line', { x1: L, y1: py(target), x2: R, y2: py(target), stroke: 'var(--color-accent)', strokeWidth: 1, strokeDasharray: '4 4' }),
-      target !== undefined && React.createElement('text', Object.assign({ x: R - 4, y: py(target) - 5, fill: 'var(--color-accent)', textAnchor: 'end' }, fs), 'Mục tiêu'),
-      yTicks.map((t, i) => React.createElement('text', Object.assign({ key: 'y' + i, x: L - 6, y: py(t.at) + 3, fill: 'var(--series-cost)', textAnchor: 'end' }, fs), t.label)),
-      xTicks.map((t, i) => React.createElement('text', Object.assign({ key: 'x' + i, x: px(t.at), y: B + 16, fill: 'var(--series-cost)', textAnchor: 'middle' }, fs), t.label)),
-      hp && React.createElement('line', { x1: L, y1: py(hp.y), x2: px(hp.x), y2: py(hp.y), stroke: 'var(--axis-line)', strokeDasharray: '3 3' }),
-      hp && React.createElement('line', { x1: px(hp.x), y1: py(hp.y), x2: px(hp.x), y2: B, stroke: 'var(--axis-line)', strokeDasharray: '3 3' }),
-      points.map((p, i) => React.createElement('circle', { key: i, cx: px(p.x), cy: py(p.y), r: (p.r || 4) + (hov === i ? 3 : 0), fill: p.fill || 'var(--series-nmv)', fillOpacity: hov < 0 ? 0.75 : (hov === i ? 1 : 0.25), stroke: hov === i ? '#FFFFFF' : 'none', strokeWidth: 2, style: { cursor: 'pointer', transition: 'fill-opacity 120ms' }, onMouseEnter: () => setHov(i) })),
-      note && React.createElement('text', Object.assign({ x: L, y: 292, fill: 'var(--series-cost)' }, fs), note)),
-    hp && React.createElement(window.__DSTip, Object.assign({ left: (+px(hp.x) / 520 * 100) + '%', top: (+py(hp.y) / 300 * height), flip: hp.x > 0.6 }, hp.tip || { rows: [{ label: 'x', value: hp.x.toFixed(2) }, { label: 'y', value: hp.y.toFixed(2) }] })));
-}
-Object.assign(__ds_scope, { ScatterPlot });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/charts/ScatterPlot.jsx", error: String((e && e.message) || e) }); }
-
-// components/charts/ShareBar.jsx
-try { (() => {
-function ShareBar({ name, valueText, shareText, share = 0, fill = 'var(--series-nmv)', meta, height = 'var(--bar-track)', tip, style }) {
-  const [hov, setHov] = React.useState(false);
-  return React.createElement('div', { onMouseEnter: () => setHov(true), onMouseLeave: () => setHov(false), style: { position: 'relative', display: 'flex', flexDirection: 'column', gap: 5, borderRadius: 6, background: hov ? 'var(--state-row-hover)' : 'transparent', boxShadow: hov ? '0 0 0 6px var(--state-row-hover)' : 'none', ...style } },
-    React.createElement('div', { style: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 'var(--space-3)' } },
-      React.createElement('span', { style: { fontSize: 13, fontWeight: hov ? 600 : 400 } }, name),
-      React.createElement('span', { style: { fontSize: 12, color: hov ? 'var(--color-text)' : 'var(--color-neutral-400)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' } }, shareText ? valueText + ' · ' + shareText : valueText)),
-    React.createElement('div', { style: { height, borderRadius: 4, background: 'var(--surface-inset)', overflow: 'hidden' } },
-      React.createElement('div', { style: { height: '100%', borderRadius: 4, background: fill, width: (share * 100).toFixed(1) + '%', filter: hov ? 'brightness(0.9)' : 'none' } })),
-    meta && React.createElement('div', { style: { fontSize: 10.5, color: hov ? 'var(--text-secondary)' : 'var(--text-faint)', fontVariantNumeric: 'tabular-nums' } }, meta),
-    hov && React.createElement(window.__DSTip, Object.assign({ left: Math.min(Math.max(share * 100, 6), 62) + '%', top: 0, above: true }, tip || { title: name, rows: [{ color: fill, label: 'Value', value: valueText }].concat(shareText ? [{ label: 'Share', value: shareText }] : []).concat(meta ? [{ label: meta, value: '' }] : []) })));
-}
-Object.assign(__ds_scope, { ShareBar });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/charts/ShareBar.jsx", error: String((e && e.message) || e) }); }
-
-// components/charts/TrendLine.jsx
-try { (() => {
-function TrendLine({ series = [], height = 170, band, ticks = [], tips, style }) {
-  const [hov, setHov] = React.useState(-1);
-  const W = 1000, H = 160;
-  const n = Math.max.apply(null, series.map(s => s.values.length).concat([0]));
-  const maxes = series.map(s => Math.max.apply(null, s.values.concat([1])));
-  const paths = series.map((s, k) => ({ color: s.color || 'var(--series-nmv)', width: s.width || 1.6, points: s.values.map((v, i) => (i / (s.values.length - 1) * W).toFixed(1) + ',' + (H - v / maxes[k] * (H - 10)).toFixed(1)).join(' ') }));
-  const onMove = e => { if (n < 2) return; const r = e.currentTarget.getBoundingClientRect(); const f = (e.clientX - r.left) / r.width; setHov(Math.max(0, Math.min(n - 1, Math.round(f * (n - 1))))); };
-  const fx = hov >= 0 && n > 1 ? hov / (n - 1) : 0;
-  const tip = hov >= 0 ? ((tips && tips[hov]) || { title: 'Point ' + (hov + 1), rows: series.map(s => ({ color: s.color, label: s.label || 'Value', value: String(Math.round(s.values[hov] * 100) / 100) })) }) : null;
-  return React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', ...style } },
-    React.createElement('div', { style: { position: 'relative', cursor: 'crosshair' }, onMouseMove: onMove, onMouseLeave: () => setHov(-1) },
-      React.createElement('svg', { viewBox: '0 0 1000 161', preserveAspectRatio: 'none', style: { width: '100%', height, display: 'block' } },
-        band && React.createElement('rect', { x: (band.from * W).toFixed(1), y: 0, width: ((band.to - band.from) * W).toFixed(1), height: 160, fill: 'var(--band-fill)' }),
-        band && React.createElement('rect', { x: (band.from * W).toFixed(1), y: 0, width: 2, height: 160, fill: 'var(--series-nmv)' }),
-        paths.map((p, i) => React.createElement('polyline', { key: i, points: p.points, fill: 'none', stroke: p.color, strokeWidth: p.width })),
-        React.createElement('line', { x1: 0, y1: 160, x2: 1000, y2: 160, stroke: 'var(--axis-line)', strokeWidth: 1 })),
-      hov >= 0 && React.createElement('div', { style: { position: 'absolute', top: 0, bottom: 0, left: (fx * 100) + '%', width: 1, background: 'rgba(31,27,23,0.35)', pointerEvents: 'none' } }),
-      hov >= 0 && series.map((s, k) => React.createElement('div', { key: 'd' + k, style: { position: 'absolute', left: (fx * 100) + '%', top: ((H - (s.values[hov] || 0) / maxes[k] * (H - 10)) / 161 * height), width: 10, height: 10, marginLeft: -5, marginTop: -5, borderRadius: '50%', background: s.color, border: '2px solid #FFFFFF', boxShadow: '0 1px 3px rgba(31,27,23,0.3)', pointerEvents: 'none' } })),
-      tip && React.createElement(window.__DSTip, Object.assign({ left: (fx * 100) + '%', top: height / 2, flip: fx > 0.6 }, tip))),
-    ticks.length > 0 && React.createElement('div', { style: { position: 'relative', height: 15 } },
-      ticks.map((t, i) => React.createElement('span', { key: i, style: { position: 'absolute', top: 0, left: (t.at * 100).toFixed(2) + '%', fontSize: 11, color: 'var(--text-muted)' } }, t.label))));
-}
-Object.assign(__ds_scope, { TrendLine });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/charts/TrendLine.jsx", error: String((e && e.message) || e) }); }
-
-// components/core/Button.jsx
-try { (() => {
-function Button({
-  variant = 'primary',
-  size = 'md',
-  block,
-  disabled,
-  icon,
-  as,
-  href,
-  onClick,
-  children,
-  style,
-  ...rest
-}) {
-  const base = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    textDecoration: 'none',
-    fontFamily: 'var(--font-heading)',
-    fontWeight: 'var(--font-heading-weight)',
-    fontSize: size === 'sm' ? 12.5 : 14,
-    lineHeight: 1.2,
-    color: 'var(--color-text)',
-    background: 'transparent',
-    border: '1px solid transparent',
-    padding: size === 'sm' ? '5px 11px' : 'var(--space-2) calc(var(--space-3) * 1.2)',
-    borderRadius: 'var(--radius-md)',
-    opacity: disabled ? 0.45 : 1,
-    width: block ? '100%' : undefined
-  };
-  const variants = {
-    primary: {
-      color: 'var(--color-accent)',
-      borderColor: 'var(--color-accent)'
-    },
-    secondary: {
-      borderColor: 'var(--color-divider)'
-    },
-    ghost: {
-      color: 'var(--color-accent)',
-      paddingInline: 'var(--space-1)'
-    },
-    icon: {
-      width: 36,
-      height: 36,
-      padding: 0,
-      borderColor: 'var(--color-divider)'
-    }
-  };
-  const [hover, setHover] = React.useState(false);
-  const hoverBg = variant === 'primary' || variant === 'ghost' ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'color-mix(in srgb, var(--color-text) 7%, transparent)';
-  const Tag = as || (href ? 'a' : 'button');
-  return React.createElement(Tag, {
-    href,
-    onClick: disabled ? undefined : onClick,
-    disabled: Tag === 'button' ? disabled : undefined,
-    onMouseEnter: () => setHover(true),
-    onMouseLeave: () => setHover(false),
-    style: {
-      ...base,
-      ...variants[variant],
-      background: hover && !disabled ? hoverBg : base.background,
-      ...style
-    },
-    ...rest
-  }, icon, children);
-}
-Object.assign(__ds_scope, { Button });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/core/Button.jsx", error: String((e && e.message) || e) }); }
-
-// components/core/Card.jsx
-try { (() => {
-function Card({
-  elevation = 'sm',
-  padding = 'var(--space-6)',
-  gap = 'var(--space-4)',
-  children,
-  style,
-  ...rest
-}) {
-  const shadow = {
-    none: 'none',
-    sm: 'var(--shadow-sm)',
-    md: 'var(--shadow-md)',
-    lg: 'var(--shadow-lg)'
-  }[elevation];
-  return React.createElement('div', {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap,
-      padding,
-      borderRadius: 'var(--radius-md)',
-      background: 'var(--surface-card)',
-      boxShadow: shadow,
-      ...style
-    },
-    ...rest
-  }, children);
-}
-function CardHeader({
-  title,
-  note,
-  right,
-  style
-}) {
-  return React.createElement('div', {
-    style: {
-      display: 'flex',
-      alignItems: 'baseline',
-      justifyContent: 'space-between',
-      gap: 'var(--space-4)',
-      ...style
-    }
-  }, React.createElement('div', null, React.createElement('h4', {
-    style: {
-      margin: '0 0 2px'
-    }
-  }, title), note && React.createElement('span', {
-    style: {
-      fontSize: 'var(--text-note-sm)',
-      color: 'var(--text-faint)'
-    }
-  }, note)), right);
-}
-Object.assign(__ds_scope, { Card, CardHeader });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/core/Card.jsx", error: String((e && e.message) || e) }); }
-
-// components/core/DataTable.jsx
-try { (() => {
-function DataTable({
-  columns = [],
-  rows = [],
-  style
-}) {
-  const [hover, setHover] = React.useState(-1);
-  const rule = op => 'linear-gradient(to right, transparent, color-mix(in srgb, var(--color-text) ' + op + '%, transparent) 48px, color-mix(in srgb, var(--color-text) ' + op + '%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px';
-  return React.createElement('table', {
-    style: {
-      width: '100%',
-      borderCollapse: 'collapse',
-      fontSize: 'var(--text-table)',
-      fontVariantNumeric: 'tabular-nums',
-      ...style
-    }
-  }, React.createElement('thead', null, React.createElement('tr', {
-    style: {
-      background: rule(16)
-    }
-  }, columns.map((c, i) => React.createElement('th', {
-    key: i,
-    style: {
-      textAlign: c.align === 'right' ? 'right' : 'left',
-      fontSize: 11,
-      letterSpacing: 'var(--tracking-label)',
-      textTransform: 'uppercase',
-      fontWeight: 400,
-      color: c.accent ? 'var(--color-accent)' : 'color-mix(in srgb, var(--color-text) 60%, transparent)',
-      padding: 'var(--space-2)',
-      whiteSpace: 'nowrap'
-    }
-  }, c.label)))), React.createElement('tbody', null, rows.map((r, ri) => React.createElement('tr', {
-    key: ri,
-    onMouseEnter: () => setHover(ri),
-    onMouseLeave: () => setHover(-1),
-    style: {
-      background: (hover === ri ? 'linear-gradient(var(--state-row-hover), var(--state-row-hover)) no-repeat 0 0 / 100% 100%, ' : '') + rule(8)
-    }
-  }, columns.map((c, ci) => {
-    const cell = r[c.key];
-    const v = cell && typeof cell === 'object' && !React.isValidElement(cell) ? cell : {
-      value: cell
-    };
-    return React.createElement('td', {
-      key: ci,
-      style: {
-        padding: 'var(--space-2)',
-        textAlign: c.align === 'right' ? 'right' : 'left',
-        whiteSpace: c.wrap ? 'normal' : 'nowrap',
-        color: v.color || 'inherit',
-        background: v.bar || undefined
-      }
-    }, v.value === null || v.value === undefined ? '—' : v.value);
-  })))));
-}
-function DataBar(share, tone = 'cost') {
-  const c = {
-    cost: 'var(--databar-cost)',
-    up: 'var(--databar-up)',
-    down: 'var(--databar-down)'
-  }[tone];
-  return 'linear-gradient(to left, ' + c + ' ' + (Math.min(Math.max(share, 0), 1) * 100).toFixed(1) + '%, transparent 0)';
-}
-Object.assign(__ds_scope, { DataTable, DataBar });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/core/DataTable.jsx", error: String((e && e.message) || e) }); }
-
-// components/core/Dialog.jsx
-try { (() => {
-function Dialog({
-  title,
-  children,
-  actions,
-  onDismiss,
-  style
-}) {
-  return React.createElement('div', {
-    onClick: onDismiss,
-    style: {
-      position: 'fixed',
-      inset: 0,
-      display: 'grid',
-      placeItems: 'center',
-      padding: 'var(--space-4)',
-      background: 'color-mix(in srgb, #071021 62%, transparent)',
-      zIndex: 40
-    }
-  }, React.createElement('div', {
-    onClick: e => e.stopPropagation(),
-    style: {
-      width: 'min(440px, 100%)',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--space-3)',
-      padding: 'var(--space-6)',
-      borderRadius: 'var(--radius-lg)',
-      background: 'var(--surface-card)',
-      boxShadow: 'var(--shadow-lg)',
-      ...style
-    }
-  }, title && React.createElement('div', {
-    style: {
-      fontFamily: 'var(--font-heading)',
-      fontWeight: 'var(--font-heading-weight)',
-      fontSize: 20
-    }
-  }, title), React.createElement('div', {
-    style: {
-      fontSize: 14,
-      opacity: 0.85
-    }
-  }, children), actions && React.createElement('div', {
-    style: {
-      display: 'flex',
-      justifyContent: 'flex-end',
-      gap: 'var(--space-2)',
-      marginTop: 'var(--space-2)'
-    }
-  }, actions)));
-}
-Object.assign(__ds_scope, { Dialog });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/core/Dialog.jsx", error: String((e && e.message) || e) }); }
-
-// components/core/Input.jsx
-try { (() => {
-function Input({
-  label,
-  hint,
-  as = 'input',
-  style,
-  ...rest
-}) {
-  const [focus, setFocus] = React.useState(false);
-  const field = React.createElement(as, {
-    onFocus: () => setFocus(true),
-    onBlur: () => setFocus(false),
-    style: {
-      width: '100%',
-      minHeight: as === 'textarea' ? 90 : 36,
-      padding: '6px 10px',
-      font: 'inherit',
-      fontSize: 14,
-      color: 'var(--color-text)',
-      caretColor: 'var(--color-accent)',
-      background: 'var(--surface-card)',
-      borderRadius: 'var(--radius-md)',
-      border: '1px solid ' + (focus ? 'var(--color-accent)' : 'var(--color-divider)'),
-      resize: as === 'textarea' ? 'vertical' : undefined,
-      ...style
-    },
-    ...rest
-  });
-  if (!label && !hint) return field;
-  return React.createElement('div', null, label && React.createElement('label', {
-    style: {
-      display: 'block',
-      fontSize: 12,
-      marginBottom: 5,
-      color: 'color-mix(in srgb, var(--color-text) 70%, transparent)'
-    }
-  }, label), field, hint && React.createElement('div', {
-    style: {
-      fontSize: 'var(--text-note-sm)',
-      color: 'var(--text-faint)',
-      marginTop: 4
-    }
-  }, hint));
-}
-Object.assign(__ds_scope, { Input });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/core/Input.jsx", error: String((e && e.message) || e) }); }
-
-// components/core/Radio.jsx
-try { (() => {
-function Radio({
-  label,
-  checked,
-  onChange,
-  name,
-  style
-}) {
-  return React.createElement('label', {
-    style: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 8,
-      cursor: 'pointer',
-      fontSize: 14,
-      ...style
-    }
-  }, React.createElement('input', {
-    type: 'radio',
-    name,
-    checked,
-    onChange,
-    style: {
-      position: 'absolute',
-      opacity: 0,
-      width: 0,
-      height: 0,
-      pointerEvents: 'none'
-    }
-  }), React.createElement('span', {
-    style: {
-      width: 16,
-      height: 16,
-      flex: 'none',
-      borderRadius: '50%',
-      border: '1.5px solid ' + (checked ? 'var(--color-accent)' : 'var(--color-divider)'),
-      background: checked ? 'var(--color-accent)' : 'transparent',
-      boxShadow: checked ? 'inset 0 0 0 4px var(--surface-page)' : 'none'
-    }
-  }), label);
-}
-Object.assign(__ds_scope, { Radio });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/core/Radio.jsx", error: String((e && e.message) || e) }); }
-
-// components/core/SegmentedControl.jsx
-try { (() => {
-function SegmentedControl({
-  options = [],
-  value,
-  onChange,
-  style
-}) {
-  return React.createElement('div', {
-    style: {
-      display: 'inline-flex',
-      overflow: 'hidden',
-      border: '1px solid var(--color-divider)',
-      borderRadius: 'var(--radius-md)',
-      ...style
-    }
-  }, options.map((o, i) => {
-    const val = o.value !== undefined ? o.value : o;
-    const on = val === value;
-    return React.createElement('button', {
-      key: val,
-      onClick: () => onChange && onChange(val),
-      style: {
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '7px 12px',
-        fontSize: 13,
-        cursor: 'pointer',
-        background: 'transparent',
-        border: 0,
-        borderLeft: i ? '1px solid var(--color-divider)' : 0,
-        fontFamily: 'var(--font-body)',
-        color: on ? 'var(--color-accent)' : 'var(--color-text)',
-        boxShadow: on ? 'var(--ring-selected)' : 'none'
-      }
-    }, o.label || val);
-  }));
-}
-Object.assign(__ds_scope, { SegmentedControl });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/core/SegmentedControl.jsx", error: String((e && e.message) || e) }); }
-
-// components/core/Tag.jsx
-try { (() => {
-function Tag({
-  tone = 'neutral',
-  children,
-  style,
-  ...rest
-}) {
-  const tones = {
-    accent: {
-      background: 'var(--color-accent-800)',
-      color: 'var(--color-accent-100)'
-    },
-    neutral: {
-      background: 'var(--color-neutral-800)',
-      color: 'var(--color-neutral-100)'
-    },
-    outline: {
-      border: '1px solid var(--color-accent)',
-      color: 'var(--color-accent)'
-    },
-    good: {
-      background: 'var(--color-accent-700)',
-      color: 'var(--color-accent-100)'
-    },
-    alert: {
-      background: 'var(--color-alert-deep)',
-      color: 'var(--color-alert-tint)'
-    }
-  };
-  return React.createElement('span', {
-    style: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      fontSize: 11,
-      letterSpacing: '0.02em',
-      padding: '3px 10px',
-      borderRadius: 'calc(var(--radius-md) * 0.75)',
-      whiteSpace: 'nowrap',
-      ...tones[tone],
-      ...style
-    },
-    ...rest
-  }, children);
-}
-Object.assign(__ds_scope, { Tag });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/core/Tag.jsx", error: String((e && e.message) || e) }); }
-
-// components/dashboard/AlertRow.jsx
-try { (() => {
-function AlertRow({
-  level = 'Chú ý',
-  title,
-  detail,
-  tone = 'warn',
-  style
-}) {
-  const t = {
-    warn: {
-      bg: 'rgba(184,70,59,0.18)',
-      tagBg: 'var(--color-alert-deep)',
-      tagColor: 'var(--color-alert-tint)'
-    },
-    info: {
-      bg: 'var(--color-accent-900)',
-      tagBg: 'var(--color-accent-800)',
-      tagColor: 'var(--color-accent-100)'
-    },
-    ok: {
-      bg: 'rgba(157,184,236,0.12)',
-      tagBg: 'var(--color-accent-700)',
-      tagColor: 'var(--color-accent-100)'
-    }
-  }[tone];
-  return React.createElement('div', {
-    style: {
-      display: 'flex',
-      gap: 'var(--space-3)',
-      alignItems: 'flex-start',
-      padding: 'var(--space-3)',
-      borderRadius: 'var(--radius-md)',
-      background: t.bg,
-      ...style
-    }
-  }, React.createElement('span', {
-    style: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      fontSize: 11,
-      padding: '3px 10px',
-      borderRadius: 'calc(var(--radius-md) * 0.75)',
-      background: t.tagBg,
-      color: t.tagColor,
-      whiteSpace: 'nowrap',
-      flex: 'none'
-    }
-  }, level), React.createElement('div', {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 2,
-      minWidth: 0
-    }
-  }, React.createElement('span', {
-    style: {
-      fontSize: 13.5
-    }
-  }, title), React.createElement('span', {
-    style: {
-      fontSize: 12,
-      color: 'var(--text-muted)'
-    }
-  }, detail)));
-}
-Object.assign(__ds_scope, { AlertRow });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/dashboard/AlertRow.jsx", error: String((e && e.message) || e) }); }
-
-// components/dashboard/FilterChips.jsx
-try { (() => {
-function FilterChips({
-  label,
-  options = [],
-  value,
-  onChange,
-  size = 'md',
-  align = 'flex-end',
-  style
-}) {
-  const [hover, setHover] = React.useState(-1);
-  return React.createElement('div', {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--space-1)',
-      alignItems: align,
-      ...style
-    }
-  }, label && React.createElement('div', {
-    style: {
-      fontSize: 10,
-      letterSpacing: 'var(--tracking-kicker)',
-      textTransform: 'uppercase',
-      color: 'var(--text-faint)'
-    }
-  }, label), React.createElement('div', {
-    style: {
-      display: 'flex',
-      gap: 'var(--space-1)',
-      flexWrap: 'wrap',
-      justifyContent: align
-    }
-  }, options.map((o, i) => {
-    const val = o.value !== undefined ? o.value : o;
-    const on = val === value;
-    return React.createElement('button', {
-      key: val,
-      onClick: () => onChange && onChange(val),
-      onMouseEnter: () => setHover(i),
-      onMouseLeave: () => setHover(-1),
-      style: {
-        cursor: 'pointer',
-        background: hover === i && !on ? 'var(--state-hover)' : 'transparent',
-        border: '1px solid var(--color-divider)',
-        borderRadius: 'var(--radius-md)',
-        padding: size === 'sm' ? '5px 10px' : '5px 11px',
-        font: 'var(--font-heading-weight) ' + (size === 'sm' ? 12 : 12.5) + 'px var(--font-heading)',
-        color: on ? 'var(--color-accent)' : 'var(--color-text)',
-        boxShadow: on ? 'var(--ring-selected)' : 'none'
-      }
-    }, o.label || val);
-  })));
-}
-Object.assign(__ds_scope, { FilterChips });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/dashboard/FilterChips.jsx", error: String((e && e.message) || e) }); }
-
-// components/dashboard/Footnote.jsx
-try { (() => {
-function Footnote({
-  divided,
-  children,
-  style
-}) {
-  return React.createElement('div', {
-    style: {
-      fontSize: 'var(--text-note-sm)',
-      color: 'var(--text-faint)',
-      borderTop: divided ? '1px solid var(--border-hairline)' : undefined,
-      paddingTop: divided ? 'var(--space-3)' : undefined,
-      ...style
-    }
-  }, children);
-}
-Object.assign(__ds_scope, { Footnote });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/dashboard/Footnote.jsx", error: String((e && e.message) || e) }); }
-
-// components/dashboard/KpiCard.jsx
-try { (() => {
-function KpiCard({
-  label,
-  value,
-  delta,
-  deltaNote,
-  tone = 'neutral',
-  labelTone = 'muted',
-  style
-}) {
-  const deltaColor = {
-    up: 'var(--text-positive)',
-    down: 'var(--text-negative)',
-    neutral: 'var(--text-faint)'
-  }[tone];
-  return React.createElement('div', {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--space-1)',
-      padding: 'var(--space-4)',
-      borderRadius: 'var(--radius-md)',
-      background: 'var(--surface-card)',
-      boxShadow: 'var(--shadow-sm)',
-      ...style
-    }
-  }, React.createElement('div', {
-    style: {
-      fontSize: 10,
-      letterSpacing: 'var(--tracking-label)',
-      textTransform: 'uppercase',
-      color: labelTone === 'accent' ? 'var(--color-accent)' : 'var(--text-muted)'
-    }
-  }, label), React.createElement('div', {
-    style: {
-      font: 'var(--font-heading-weight) var(--text-metric)/1.1 var(--font-heading)',
-      fontVariantNumeric: 'tabular-nums',
-      letterSpacing: 'var(--tracking-tight)'
-    }
-  }, value), (delta || deltaNote) && React.createElement('div', {
-    style: {
-      display: 'flex',
-      alignItems: 'baseline',
-      gap: 6,
-      fontSize: 11.5,
-      fontVariantNumeric: 'tabular-nums',
-      whiteSpace: 'nowrap'
-    }
-  }, React.createElement('span', {
-    style: {
-      color: deltaColor
-    }
-  }, delta || '—'), React.createElement('span', {
-    style: {
-      color: 'var(--text-faint)'
-    }
-  }, deltaNote)));
-}
-Object.assign(__ds_scope, { KpiCard });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/dashboard/KpiCard.jsx", error: String((e && e.message) || e) }); }
-
-// components/dashboard/NavRail.jsx
-try { (() => {
-function NavRail({
-  brand = 'BlueStone',
-  product = 'Performance',
-  groupLabel = 'Báo cáo',
-  items = [],
-  active,
-  onSelect,
-  footer,
-  style
-}) {
-  const [hover, setHover] = React.useState(-1);
-  return React.createElement('aside', {
-    style: {
-      width: 'var(--rail-width)',
-      flex: 'none',
-      minHeight: '100vh',
-      background: 'var(--surface-rail)',
-      borderRight: '1px solid var(--border-hairline)',
-      padding: 'var(--space-6) var(--space-4)',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--space-8)',
-      ...style
-    }
-  }, React.createElement('div', {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 2
-    }
-  }, React.createElement('div', {
-    style: {
-      font: 'var(--font-heading-weight) 17px var(--font-heading)',
-      letterSpacing: 'var(--tracking-title)'
-    }
-  }, brand), React.createElement('div', {
-    style: {
-      fontSize: 11,
-      letterSpacing: 'var(--tracking-kicker)',
-      textTransform: 'uppercase',
-      color: 'var(--color-accent)'
-    }
-  }, product)), React.createElement('nav', {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'stretch',
-      gap: 1
-    }
-  }, React.createElement('div', {
-    style: {
-      fontSize: 10,
-      letterSpacing: 'var(--tracking-kicker)',
-      textTransform: 'uppercase',
-      color: 'var(--text-faint)',
-      padding: 'var(--space-2) var(--space-2) var(--space-1)'
-    }
-  }, groupLabel), items.map((it, i) => React.createElement('a', {
-    key: it.id || i,
-    href: it.href || '#',
-    'aria-current': it.id === active ? 'page' : undefined,
-    onClick: onSelect ? e => {
-      e.preventDefault();
-      onSelect(it.id);
-    } : undefined,
-    onMouseEnter: () => setHover(i),
-    onMouseLeave: () => setHover(-1),
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 'var(--space-2)',
-      padding: 'var(--space-2) var(--space-3)',
-      borderRadius: 'var(--radius-md)',
-      fontSize: 13.5,
-      textDecoration: 'none',
-      color: it.id === active ? 'var(--color-accent)' : 'var(--color-text)',
-      background: hover === i ? 'var(--state-hover)' : 'transparent'
-    }
-  }, React.createElement('span', null, it.label), React.createElement('span', {
-    style: {
-      fontSize: 10,
-      color: 'var(--text-faint)',
-      fontVariantNumeric: 'tabular-nums'
-    }
-  }, String(i + 1).padStart(2, '0'))))), footer && React.createElement('div', {
-    style: {
-      marginTop: 'auto',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--space-2)'
-    }
-  }, footer));
-}
-Object.assign(__ds_scope, { NavRail });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/dashboard/NavRail.jsx", error: String((e && e.message) || e) }); }
-
-// components/dashboard/PacingBar.jsx
-try { (() => {
-function PacingBar({
-  tag,
-  text,
-  share = 0,
-  link,
-  style
-}) {
-  return React.createElement('section', {
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 'var(--space-3)',
-      padding: 'var(--space-3) var(--space-4)',
-      borderRadius: 'var(--radius-md)',
-      background: 'var(--surface-notice)',
-      boxShadow: 'var(--shadow-sm)',
-      ...style
-    }
-  }, React.createElement('span', {
-    style: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      fontSize: 11,
-      padding: '3px 10px',
-      borderRadius: 'calc(var(--radius-md) * 0.75)',
-      border: '1px solid var(--color-accent)',
-      color: 'var(--color-accent)',
-      flex: 'none',
-      whiteSpace: 'nowrap'
-    }
-  }, tag), React.createElement('span', {
-    style: {
-      fontSize: 13,
-      color: 'var(--text-on-accent)'
-    }
-  }, text), React.createElement('span', {
-    style: {
-      flex: 'none',
-      width: 120,
-      height: 'var(--bar-track-sm)',
-      borderRadius: 3,
-      background: 'var(--surface-inset)',
-      overflow: 'hidden'
-    }
-  }, React.createElement('span', {
-    style: {
-      display: 'block',
-      height: '100%',
-      background: 'var(--series-nmv)',
-      width: (share * 100).toFixed(1) + '%'
-    }
-  })), link && React.createElement('span', {
-    style: {
-      marginLeft: 'auto',
-      fontSize: 12.5
-    }
-  }, link));
-}
-Object.assign(__ds_scope, { PacingBar });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/dashboard/PacingBar.jsx", error: String((e && e.message) || e) }); }
-
-// components/dashboard/PageHeader.jsx
-try { (() => {
-function PageHeader({
-  kicker,
-  title,
-  subtitle,
-  right,
-  style
-}) {
-  return React.createElement('header', {
-    style: {
-      display: 'flex',
-      alignItems: 'flex-end',
-      justifyContent: 'space-between',
-      gap: 'var(--space-8)',
-      ...style
-    }
-  }, React.createElement('div', {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--space-2)'
-    }
-  }, kicker && React.createElement('div', {
-    style: {
-      fontSize: 10,
-      letterSpacing: 'var(--tracking-kicker)',
-      textTransform: 'uppercase',
-      color: 'var(--color-accent)'
-    }
-  }, kicker), React.createElement('h1', {
-    style: {
-      fontSize: 'var(--text-page-title)',
-      margin: 0
-    }
-  }, title), subtitle && React.createElement('p', {
-    style: {
-      margin: 0,
-      fontSize: 'var(--text-body-sm)',
-      color: 'var(--text-muted)'
-    }
-  }, subtitle)), right);
-}
-Object.assign(__ds_scope, { PageHeader });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/dashboard/PageHeader.jsx", error: String((e && e.message) || e) }); }
-
-// components/dashboard/TargetCard.jsx
-try { (() => {
-function TargetCard({
-  label,
-  target,
-  actual,
-  gap,
-  note,
-  share = 0,
-  mark = 0,
-  tone = 'good',
-  style
-}) {
-  const color = tone === 'alert' ? 'var(--text-negative)' : 'var(--color-accent)';
-  return React.createElement('div', {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--space-3)',
-      padding: 'var(--space-6)',
-      borderRadius: 'var(--radius-md)',
-      background: 'var(--surface-card)',
-      boxShadow: 'var(--shadow-sm)',
-      ...style
-    }
-  }, React.createElement('div', {
-    style: {
-      display: 'flex',
-      alignItems: 'baseline',
-      justifyContent: 'space-between',
-      gap: 'var(--space-3)'
-    }
-  }, React.createElement('span', {
-    style: {
-      fontSize: 10,
-      letterSpacing: 'var(--tracking-label)',
-      textTransform: 'uppercase',
-      color: 'var(--text-muted)',
-      whiteSpace: 'nowrap'
-    }
-  }, label), React.createElement('span', {
-    style: {
-      fontSize: 11,
-      color: 'var(--text-faint)',
-      whiteSpace: 'nowrap',
-      fontVariantNumeric: 'tabular-nums'
-    }
-  }, target)), React.createElement('div', {
-    style: {
-      display: 'flex',
-      alignItems: 'baseline',
-      gap: 'var(--space-3)',
-      whiteSpace: 'nowrap'
-    }
-  }, React.createElement('span', {
-    style: {
-      font: 'var(--font-heading-weight) var(--text-metric-xl)/1 var(--font-heading)',
-      fontVariantNumeric: 'tabular-nums',
-      color
-    }
-  }, actual), React.createElement('span', {
-    style: {
-      fontSize: 12,
-      color
-    }
-  }, gap)), React.createElement('div', {
-    style: {
-      height: 'var(--bar-track-sm)',
-      borderRadius: 3,
-      background: 'var(--surface-inset)',
-      position: 'relative',
-      overflow: 'hidden'
-    }
-  }, React.createElement('div', {
-    style: {
-      position: 'absolute',
-      inset: '0 auto 0 0',
-      width: (share * 100).toFixed(1) + '%',
-      background: color,
-      borderRadius: 3
-    }
-  }), React.createElement('div', {
-    style: {
-      position: 'absolute',
-      top: -3,
-      bottom: -3,
-      width: 1,
-      background: 'var(--color-neutral-300)',
-      left: (mark * 100).toFixed(1) + '%'
-    }
-  })), note && React.createElement('div', {
-    style: {
-      fontSize: 'var(--text-note-sm)',
-      color: 'var(--text-faint)'
-    }
-  }, note));
-}
-Object.assign(__ds_scope, { TargetCard });
-})(); } catch (e) { __ds_ns.__errors.push({ path: "components/dashboard/TargetCard.jsx", error: String((e && e.message) || e) }); }
-
-// ui_kits/performance_dashboard/Screens.jsx
-try { (() => {
-const {
-  NavRail,
-  PageHeader,
-  FilterChips,
-  PacingBar,
-  KpiCard,
-  TargetCard,
-  AlertRow,
-  Footnote,
-  Card,
-  CardHeader,
-  Button,
-  Tag,
-  DataTable,
-  DataBar,
-  SegmentedControl,
-  Dialog,
-  ShareBar,
-  BarPairChart,
-  TrendLine,
-  FunnelRow,
-  Legend,
-  ScatterPlot
-} = window.BlueStonePerformanceDesignSystem_fd579b;
-const K = window.KIT;
-function useScope(month) {
-  const ms = month === 'all' ? K.MONTHS : K.MONTHS.filter(m => m.key === month);
-  return K.derive(K.agg(ms));
-}
-function ScopeChips({
-  month,
-  setMonth
-}) {
-  const opts = K.MONTHS.map(m => ({
-    value: m.key,
-    label: m.label
-  })).concat([{
-    value: 'all',
-    label: 'Toàn kỳ'
-  }]);
-  return /*#__PURE__*/React.createElement(FilterChips, {
-    label: "K\u1EF3 xem",
-    options: opts,
-    value: month,
-    onChange: setMonth
-  });
-}
-function Pacing({
-  month,
-  link
-}) {
-  const p = K.period;
-  if (month === 'all') return /*#__PURE__*/React.createElement(PacingBar, {
-    tag: "To\xE0n k\u1EF3",
-    share: 1,
-    link: link,
-    text: 'Toàn kỳ ' + p.from + ' – ' + p.to + ' · 230 ngày, trong đó tháng 8 chưa đủ ngày — dùng bảng ước tính khi so tháng.'
-  });
-  if (month !== '2026-08') return /*#__PURE__*/React.createElement(PacingBar, {
-    tag: 'Đủ 31 ngày',
-    share: 1,
-    link: link,
-    text: "Th\xE1ng \u0111\xE3 k\u1EBFt th\xFAc \u2014 s\u1ED1 li\u1EC7u \u0111\u1EA7y \u0111\u1EE7, kh\xF4ng c\u1EA7n \u01B0\u1EDBc t\xEDnh."
-  });
-  return /*#__PURE__*/React.createElement(PacingBar, {
-    tag: 'Ngày ' + p.daysHas + '/' + p.daysAll,
-    share: p.share,
-    link: link,
-    text: 'Còn 13 ngày · đã đi 58% tháng · hệ số ước tính cả tháng ×' + p.factor.toFixed(2)
-  });
-}
-function OverviewScreen({
-  month,
-  setMonth,
-  go
-}) {
-  const cur = useScope(month);
-  const i = K.MONTHS.findIndex(m => m.key === month);
-  const prev = i > 0 ? K.derive(K.agg([K.MONTHS[i - 1]])) : null;
-  const kpi = (label, key, fmt, lowerBetter) => {
-    let delta = '—',
-      tone = 'neutral';
-    if (prev && prev[key]) {
-      const d = (cur[key] - prev[key]) / prev[key];
-      delta = (d >= 0 ? '+' : '') + (d * 100).toFixed(1) + '%';
-      tone = d >= 0 === !lowerBetter ? 'up' : 'down';
-    }
-    return /*#__PURE__*/React.createElement(KpiCard, {
-      key: label,
-      label: label,
-      value: fmt(cur[key]),
-      delta: delta,
-      tone: tone,
-      deltaNote: prev ? 'vs ' + K.MONTHS[i - 1].label : month === 'all' ? 'tổng 8 tháng' : 'không có kỳ trước'
-    });
-  };
-  const maxW = K.CHANNELS[0].w;
-  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(PageHeader, {
-    kicker: "Trang 01 \xB7 Ban l\xE3nh \u0111\u1EA1o",
-    title: "T\u1ED5ng quan hi\u1EC7u su\u1EA5t",
-    subtitle: /*#__PURE__*/React.createElement(React.Fragment, null, "Chi ph\xED, doanh thu v\xE0 hi\u1EC7u qu\u1EA3 to\xE0n k\xEAnh \u2014 ", /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: 'var(--text-secondary)'
-      }
-    }, month === 'all' ? 'toàn kỳ 01/2026 – 18/08/2026' : month === '2026-08' ? 'tháng 8/2026 (1–18/08, chưa đủ tháng)' : 'tháng ' + month.slice(5) + '/2026')),
-    right: /*#__PURE__*/React.createElement(ScopeChips, {
-      month: month,
-      setMonth: setMonth
-    })
-  }), /*#__PURE__*/React.createElement(Pacing, {
-    month: month,
-    link: /*#__PURE__*/React.createElement("a", {
-      href: "#",
-      onClick: e => {
-        e.preventDefault();
-        go('ops');
-      }
-    }, "Xem c\u1EA3nh b\xE1o & ch\u1EA5t l\u01B0\u1EE3ng d\u1EEF li\u1EC7u \u2192")
-  }), /*#__PURE__*/React.createElement("section", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(5,1fr)',
-      gap: 'var(--space-3)'
-    }
-  }, kpi('Cost', 'cost', K.money, true), kpi('NMV', 'nmv', K.money, false), kpi('ROAS', 'roas', v => v.toFixed(1) + 'x', false), kpi('CIR', 'cir', v => K.pct(v, 2), true), kpi('Orders', 'orders', K.num, false), kpi('AOV', 'aov', K.money, false), kpi('CPO', 'cpo', K.money, true), kpi('Leads', 'leads', K.num, false), kpi('%NMV (NMV/GMV)', 'nmvRate', v => K.pct(v, 0), false), kpi('Hoàn / hủy đơn', 'cancel', v => K.pct(v, 1), true)), /*#__PURE__*/React.createElement("section", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: '1.35fr 1fr',
-      gap: 'var(--space-6)'
-    }
-  }, /*#__PURE__*/React.createElement(Card, {
-    padding: "var(--space-6)",
-    gap: "var(--space-6)"
-  }, /*#__PURE__*/React.createElement(CardHeader, {
-    title: "Chi ph\xED & NMV theo th\xE1ng",
-    right: /*#__PURE__*/React.createElement(Legend, {
-      items: [{
-        color: 'var(--series-nmv)',
-        label: 'NMV'
-      }, {
-        color: 'var(--series-cost)',
-        label: 'Cost'
-      }]
-    })
-  }), /*#__PURE__*/React.createElement(BarPairChart, {
-    activeKey: month,
-    data: K.MONTHS.map(m => ({
-      key: m.key,
-      label: m.label,
-      subLabel: 'CIR ' + K.pct(m.cost / m.nmv, 1),
-      topLabel: K.short(m.nmv),
-      a: m.nmv,
-      b: m.cost
-    }))
-  })), /*#__PURE__*/React.createElement(Card, {
-    padding: "var(--space-6)",
-    gap: "var(--space-6)"
-  }, /*#__PURE__*/React.createElement(CardHeader, {
-    title: "T\u1EF7 tr\u1ECDng theo k\xEAnh",
-    right: /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 11,
-        color: 'var(--text-faint)'
-      }
-    }, "NMV")
-  }), K.CHANNELS.filter(c => c.core).map(c => /*#__PURE__*/React.createElement(ShareBar, {
-    key: c.key,
-    name: c.name,
-    fill: c.fill,
-    valueText: K.money(cur.nmv * c.w),
-    shareText: K.pct(c.w, 0),
-    share: c.w / maxW,
-    meta: 'Cost ' + K.money(cur.cost * c.w * 1.05) + ' · CIR ' + K.pct(c.cir, 1) + ' · ' + K.num(cur.orders * c.w) + ' đơn'
-  })), /*#__PURE__*/React.createElement(ShareBar, {
-    name: "K\xEAnh kh\xE1c (6)",
-    fill: "var(--channel-other)",
-    valueText: "kh\xF4ng c\xF3 NMV",
-    share: 0,
-    meta: 'không có Spend · ' + K.num(cur.orders * 0.11) + ' đơn'
-  }))), /*#__PURE__*/React.createElement(Card, {
-    padding: "var(--space-6)"
-  }, /*#__PURE__*/React.createElement(CardHeader, {
-    title: "Di\u1EC5n bi\u1EBFn theo ng\xE0y",
-    note: "01/01 \u2013 18/08/2026 \xB7 NMV v\xE0 Cost \xB7 v\xF9ng s\xE1ng = k\u1EF3 \u0111ang xem"
-  }), /*#__PURE__*/React.createElement(TrendLine, {
-    series: [{
-      values: K.days.map(d => d.nmv)
-    }, {
-      values: K.days.map(d => d.cost),
-      color: 'var(--series-cost)',
-      width: 1.2
-    }],
-    band: month === 'all' ? {
-      from: 0,
-      to: 1
-    } : {
-      from: i / 8,
-      to: (i + 1) / 8
-    },
-    ticks: K.MONTHS.map((m, j) => ({
-      at: j / 8,
-      label: m.label.replace('*', '')
-    }))
-  })), /*#__PURE__*/React.createElement(Card, {
-    padding: "var(--space-6)"
-  }, /*#__PURE__*/React.createElement(CardHeader, {
-    title: "B\u1EA3ng t\u1ED5ng h\u1EE3p theo k\xEAnh",
-    right: /*#__PURE__*/React.createElement("a", {
-      href: "#",
-      onClick: e => {
-        e.preventDefault();
-        go('channels');
-      },
-      style: {
-        fontSize: 12.5
-      }
-    }, "Ph\xE2n t\xEDch s\xE2u theo k\xEAnh \u2192")
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: 'var(--space-6)'
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--space-2)',
-      minWidth: 0
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      letterSpacing: 'var(--tracking-label)',
-      textTransform: 'uppercase',
-      color: 'var(--color-accent)'
-    }
-  }, "Quy m\xF4"), /*#__PURE__*/React.createElement(DataTable, {
-    columns: [{
-      key: 'ch',
-      label: 'Kênh'
-    }, {
-      key: 'cost',
-      label: 'Cost',
-      align: 'right'
-    }, {
-      key: 'share',
-      label: '%Cost',
-      align: 'right'
-    }, {
-      key: 'nmv',
-      label: 'NMV',
-      align: 'right'
-    }, {
-      key: 'leads',
-      label: 'Leads',
-      align: 'right'
-    }, {
-      key: 'orders',
-      label: 'Orders',
-      align: 'right'
-    }],
-    rows: K.CHANNELS.map(c => ({
-      ch: {
-        value: c.name,
-        color: c.core ? undefined : 'var(--text-muted)'
-      },
-      cost: c.core ? K.money(cur.cost * c.w * 1.05) : null,
-      share: c.core ? {
-        value: K.pct(c.w * 1.05, 1),
-        bar: DataBar(c.w * 1.05)
-      } : null,
-      nmv: c.core ? K.money(cur.nmv * c.w) : null,
-      leads: c.core ? K.num(cur.leads * c.w) : null,
-      orders: K.num(cur.orders * c.w)
-    }))
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--space-2)',
-      minWidth: 0
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      letterSpacing: 'var(--tracking-label)',
-      textTransform: 'uppercase',
-      color: 'var(--color-accent)'
-    }
-  }, "Hi\u1EC7u qu\u1EA3"), /*#__PURE__*/React.createElement(DataTable, {
-    columns: [{
-      key: 'ch',
-      label: 'Kênh'
-    }, {
-      key: 'roas',
-      label: 'ROAS',
-      align: 'right'
-    }, {
-      key: 'cir',
-      label: 'CIR',
-      align: 'right'
-    }, {
-      key: 'cpo',
-      label: 'CPO',
-      align: 'right'
-    }, {
-      key: 'aov',
-      label: 'AOV',
-      align: 'right'
-    }, {
-      key: 'skew',
-      label: 'Lệch tỷ trọng',
-      align: 'right'
-    }],
-    rows: K.CHANNELS.map(c => {
-      const skew = c.core ? c.w * 1.05 - c.w : null;
-      return {
-        ch: {
-          value: c.name,
-          color: c.core ? undefined : 'var(--text-muted)'
-        },
-        roas: c.core ? (1 / c.cir).toFixed(1) + 'x' : null,
-        cir: c.core ? {
-          value: K.pct(c.cir, 2),
-          color: c.cir > 0.08 ? 'var(--text-negative)' : undefined
-        } : null,
-        cpo: c.core ? K.money(cur.cost * c.w * 1.05 / (cur.orders * c.w)) : null,
-        aov: c.core ? K.money(cur.nmv * c.w / (cur.orders * c.w)) : null,
-        skew: skew == null ? null : {
-          value: (skew >= 0 ? '+' : '−') + Math.abs(skew * 100).toFixed(1) + ' đ%',
-          color: skew > 0.01 ? 'var(--text-negative)' : 'var(--text-positive)',
-          bar: DataBar(Math.abs(skew) * 8, skew > 0 ? 'up' : 'down')
-        }
-      };
-    })
-  }))), /*#__PURE__*/React.createElement(Footnote, null, "L\u1EC7ch t\u1EF7 tr\u1ECDng = %Cost \u2212 %NMV (\u0111i\u1EC3m ph\u1EA7n tr\u0103m). K\xEAnh kh\xF4ng c\xF3 Spend ho\u1EB7c NMV \u0111\u1EC3 tr\u1ED1ng thay v\xEC t\xEDnh b\u1EB1ng 0.")));
-}
-function ChannelsScreen({
-  month,
-  setMonth,
-  go
-}) {
-  const cur = useScope(month);
-  const core = K.CHANNELS.filter(c => c.core);
-  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(PageHeader, {
-    kicker: "Trang 02 \xB7 Tr\u01B0\u1EDFng ph\xF2ng",
-    title: "Ph\xE2n t\xEDch theo k\xEAnh",
-    subtitle: "C\u1EA5u tr\xFAc chi ph\xED, hi\u1EC7u qu\u1EA3 t\u1EEBng k\xEAnh v\xE0 ph\u1EA7n \u0111\xF3ng g\xF3p doanh thu",
-    right: /*#__PURE__*/React.createElement(ScopeChips, {
-      month: month,
-      setMonth: setMonth
-    })
-  }), /*#__PURE__*/React.createElement(Pacing, {
-    month: month
-  }), /*#__PURE__*/React.createElement("section", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(4,1fr)',
-      gap: 'var(--space-3)'
-    }
-  }, core.map(c => /*#__PURE__*/React.createElement(Card, {
-    key: c.key,
-    padding: "var(--space-4)",
-    gap: "var(--space-2)"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 6
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      width: 9,
-      height: 9,
-      borderRadius: 2,
-      background: c.fill,
-      display: 'block'
-    }
-  }), /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontSize: 13
-    }
-  }, c.name), /*#__PURE__*/React.createElement(Tag, {
-    tone: c.cir > 0.08 ? 'alert' : 'good',
-    style: {
-      marginLeft: 'auto'
-    }
-  }, c.cir > 0.08 ? 'Cảnh báo' : 'Đạt')), /*#__PURE__*/React.createElement("div", {
-    className: "tabular",
-    style: {
-      font: '700 22px/1.05 var(--font-heading)'
-    }
-  }, K.money(cur.nmv * c.w)), /*#__PURE__*/React.createElement("div", {
-    className: "tabular",
-    style: {
-      fontSize: 11.5,
-      color: 'var(--text-muted)'
-    }
-  }, "Cost ", K.money(cur.cost * c.w * 1.05), " \xB7 CIR ", K.pct(c.cir, 1), " \xB7 ROAS ", (1 / c.cir).toFixed(1), "x")))), /*#__PURE__*/React.createElement(Card, {
-    padding: "var(--space-6)"
-  }, /*#__PURE__*/React.createElement(CardHeader, {
-    title: "12 k\xEAnh \u2014 quy m\xF4 v\xE0 hi\u1EC7u qu\u1EA3",
-    note: "S\u1EAFp theo chi ph\xED; 8 k\xEAnh ngo\xE0i nh\xF3m l\xF5i kh\xF4ng c\xF3 c\u1ED9t Spend"
-  }), /*#__PURE__*/React.createElement(DataTable, {
-    columns: [{
-      key: 'ch',
-      label: 'Kênh'
-    }, {
-      key: 'cost',
-      label: 'Cost',
-      align: 'right'
-    }, {
-      key: 'nmv',
-      label: 'NMV',
-      align: 'right'
-    }, {
-      key: 'gmv',
-      label: 'GMV',
-      align: 'right'
-    }, {
-      key: 'orders',
-      label: 'Orders',
-      align: 'right'
-    }, {
-      key: 'cir',
-      label: 'CIR',
-      align: 'right'
-    }, {
-      key: 'cpo',
-      label: 'CPO',
-      align: 'right'
-    }, {
-      key: 'aov',
-      label: 'AOV',
-      align: 'right'
-    }],
-    rows: K.CHANNELS.map(c => ({
-      ch: {
-        value: c.name,
-        color: c.core ? undefined : 'var(--text-muted)'
-      },
-      cost: c.core ? {
-        value: K.money(cur.cost * c.w * 1.05),
-        bar: DataBar(c.w * 1.05)
-      } : null,
-      nmv: c.core ? K.money(cur.nmv * c.w) : null,
-      gmv: c.core ? K.money(cur.gmv * c.w) : null,
-      orders: K.num(cur.orders * c.w),
-      cir: c.core ? {
-        value: K.pct(c.cir, 2),
-        color: c.cir > 0.08 ? 'var(--text-negative)' : undefined
-      } : null,
-      cpo: c.core ? K.money(cur.cost * c.w * 1.05 / (cur.orders * c.w)) : null,
-      aov: c.core ? K.money(cur.nmv * c.w / (cur.orders * c.w)) : null
-    }))
-  }), /*#__PURE__*/React.createElement(Footnote, {
-    divided: true
-  }, "C\u1ED9t \"cost\" trong sheet All Data c\u1EE7a 8 k\xEAnh ngo\xE0i nh\xF3m l\xF5i tr\xF9ng kh\xEDt c\u1ED9t GMV n\xEAn kh\xF4ng \u0111\u01B0\u1EE3c d\xF9ng l\xE0m chi ph\xED.")), /*#__PURE__*/React.createElement("section", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: 'var(--space-6)'
-    }
-  }, /*#__PURE__*/React.createElement(Card, {
-    padding: "var(--space-6)",
-    gap: "var(--space-6)"
-  }, /*#__PURE__*/React.createElement(CardHeader, {
-    title: "T\u1EF7 tr\u1ECDng chi ph\xED",
-    note: "Ph\u1EA7n ng\xE2n s\xE1ch m\u1ED7i k\xEAnh chi\u1EBFm trong k\u1EF3 \u0111ang xem"
-  }), core.map(c => /*#__PURE__*/React.createElement(ShareBar, {
-    key: c.key,
-    name: c.name,
-    fill: c.fill,
-    share: c.w / core[0].w,
-    valueText: K.money(cur.cost * c.w * 1.05),
-    shareText: K.pct(c.w * 1.05, 0)
-  }))), /*#__PURE__*/React.createElement(Card, {
-    padding: "var(--space-6)",
-    gap: "var(--space-6)"
-  }, /*#__PURE__*/React.createElement(CardHeader, {
-    title: "Ph\u1EC5u Leads \u2192 Orders \u2192 NMV",
-    note: "Ch\u1EC9 4 k\xEAnh c\xF3 ghi nh\u1EADn Leads"
-  }), core.map(c => /*#__PURE__*/React.createElement(FunnelRow, {
-    key: c.key,
-    name: c.name,
-    rates: 'Chốt đơn ' + K.pct(cur.orders / cur.leads, 0),
-    steps: [{
-      share: c.w / core[0].w,
-      text: K.num(cur.leads * c.w) + ' leads',
-      fill: c.fill
-    }, {
-      share: c.w / core[0].w * 0.42,
-      text: K.num(cur.orders * c.w) + ' đơn'
-    }, {
-      share: c.w / core[0].w * 0.31,
-      text: K.money(cur.nmv * c.w),
-      fill: 'var(--color-neutral-700)'
-    }]
-  })))));
-}
-function EfficiencyScreen({
-  month,
-  setMonth,
-  go
-}) {
-  const cur = useScope(month);
-  const core = K.CHANNELS.filter(c => c.core);
-  const dots = [];
-  K.MONTHS.forEach((m, i) => core.forEach(c => dots.push({
-    x: 0.1 + m.cost * c.w / 4e8,
-    y: c.cir * 2.6 + i % 3 * 0.05,
-    r: 3 + c.w * 10,
-    fill: c.fill
-  })));
-  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(PageHeader, {
-    kicker: "Trang 07 \xB7 Chuy\xEAn vi\xEAn v\u1EADn h\xE0nh",
-    title: "Hi\u1EC7u qu\u1EA3 chi ph\xED & ph\u1EC5u",
-    subtitle: "CIR, CPO, CPL \u0111\u1EB7t c\u1EA1nh ng\u01B0\u1EE1ng m\u1EE5c ti\xEAu; ph\u1EC5u cho 4 k\xEAnh c\xF3 \u0111\u1EE7 ch\u1EC9 s\u1ED1",
-    right: /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        gap: 'var(--space-2)'
-      }
-    }, /*#__PURE__*/React.createElement(Button, {
-      variant: "secondary",
-      onClick: () => go('channels')
-    }, "\u2190 Ph\xE2n t\xEDch theo k\xEAnh"), /*#__PURE__*/React.createElement(Button, {
-      onClick: () => go('ops')
-    }, "C\u1EA3nh b\xE1o \u2192"))
-  }), /*#__PURE__*/React.createElement("section", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(3,1fr)',
-      gap: 'var(--space-6)'
-    }
-  }, /*#__PURE__*/React.createElement(TargetCard, {
-    label: "CIR to\xE0n k\xEAnh",
-    target: "MT 8%",
-    actual: K.pct(cur.cir, 2),
-    gap: '+' + ((cur.cir - 0.08) * 100).toFixed(2) + ' đ%',
-    share: Math.min(cur.cir / 0.1, 1),
-    mark: 0.8,
-    tone: cur.cir > 0.08 ? 'alert' : 'good',
-    note: "V\u01B0\u1EE3t ng\u01B0\u1EE1ng \u2014 Tiktok Shop \u0111\xF3ng g\xF3p ph\u1EA7n l\u1EDBn ph\u1EA7n v\u01B0\u1EE3t."
-  }), /*#__PURE__*/React.createElement(TargetCard, {
-    label: "CPO to\xE0n k\xEAnh",
-    target: "MT 16K\u20AB",
-    actual: K.money(cur.cpo),
-    gap: '−' + K.short(16000 - cur.cpo) + '₫',
-    share: cur.cpo / 20000,
-    mark: 0.8,
-    note: "Trong ng\u01B0\u1EE1ng \u1EDF c\u1EA3 8 th\xE1ng."
-  }), /*#__PURE__*/React.createElement(TargetCard, {
-    label: "CPL to\xE0n k\xEAnh",
-    target: "MT 8K\u20AB",
-    actual: K.money(cur.cpl),
-    gap: '−' + K.short(8000 - cur.cpl) + '₫',
-    share: cur.cpl / 10000,
-    mark: 0.8,
-    note: "Lead ch\u1EC9 \u0111\u01B0\u1EE3c ghi nh\u1EADn \u1EDF 4 k\xEAnh l\xF5i."
-  })), /*#__PURE__*/React.createElement(Card, {
-    padding: "var(--space-6)"
-  }, /*#__PURE__*/React.createElement(CardHeader, {
-    title: "Benchmark theo k\xEAnh \u2014 l\u0169y k\u1EBF to\xE0n k\u1EF3",
-    note: "\u0110\u1EA1t / C\u1EA3nh b\xE1o t\xEDnh theo ng\u01B0\u1EE1ng \u1EDF ba th\u1EBB tr\xEAn"
-  }), /*#__PURE__*/React.createElement(DataTable, {
-    columns: [{
-      key: 'ch',
-      label: 'Kênh'
-    }, {
-      key: 'cost',
-      label: 'Cost',
-      align: 'right'
-    }, {
-      key: 'orders',
-      label: 'Orders',
-      align: 'right'
-    }, {
-      key: 'cir',
-      label: 'CIR',
-      align: 'right'
-    }, {
-      key: 'cpo',
-      label: 'CPO',
-      align: 'right'
-    }, {
-      key: 'cpl',
-      label: 'CPL',
-      align: 'right'
-    }, {
-      key: 'aov',
-      label: 'AOV',
-      align: 'right'
-    }, {
-      key: 'status',
-      label: 'Trạng thái',
-      align: 'right'
-    }],
-    rows: core.map(c => ({
-      ch: c.name,
-      cost: K.money(cur.cost * c.w * 1.05),
-      orders: K.num(cur.orders * c.w),
-      cir: {
-        value: K.pct(c.cir, 2),
-        color: c.cir > 0.08 ? 'var(--text-negative)' : undefined
-      },
-      cpo: K.money(cur.cost * c.w * 1.05 / (cur.orders * c.w)),
-      cpl: K.money(cur.cost * c.w * 1.05 / (cur.leads * c.w)),
-      aov: K.money(cur.nmv * c.w / (cur.orders * c.w)),
-      status: /*#__PURE__*/React.createElement(Tag, {
-        tone: c.cir > 0.08 ? 'alert' : 'good'
-      }, c.cir > 0.08 ? 'Cảnh báo' : 'Đạt')
-    }))
-  })), /*#__PURE__*/React.createElement("section", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: '1.1fr 1fr',
-      gap: 'var(--space-6)'
-    }
-  }, /*#__PURE__*/React.createElement(Card, {
-    padding: "var(--space-6)"
-  }, /*#__PURE__*/React.createElement(CardHeader, {
-    title: "Chi ph\xED th\xE1ng so v\u1EDBi CIR",
-    note: "M\u1ED7i \u0111i\u1EC3m l\xE0 m\u1ED9t k\xEAnh trong m\u1ED9t th\xE1ng \xB7 \u0111\u01B0\u1EDDng ngang: ng\u01B0\u1EE1ng 8%"
-  }), /*#__PURE__*/React.createElement(ScatterPlot, {
-    points: dots,
-    target: 0.21,
-    note: "K\xEDch th\u01B0\u1EDBc \u0111i\u1EC3m = s\u1ED1 \u0111\u01A1n",
-    yTicks: [{
-      at: 0.26,
-      label: '10%'
-    }, {
-      at: 0.52,
-      label: '20%'
-    }, {
-      at: 0.78,
-      label: '30%'
-    }],
-    xTicks: [{
-      at: 0.25,
-      label: '50M'
-    }, {
-      at: 0.5,
-      label: '100M'
-    }, {
-      at: 0.75,
-      label: '150M'
-    }]
-  }), /*#__PURE__*/React.createElement(Legend, {
-    shape: "dot",
-    items: core.map(c => ({
-      color: c.fill,
-      label: c.name
-    }))
-  })), /*#__PURE__*/React.createElement(Card, {
-    padding: "var(--space-6)",
-    gap: "var(--space-6)"
-  }, /*#__PURE__*/React.createElement(CardHeader, {
-    title: "Ph\u1EC5u Leads \u2192 Orders \u2192 NMV",
-    note: "L\u0169y k\u1EBF to\xE0n k\u1EF3"
-  }), core.map(c => /*#__PURE__*/React.createElement(FunnelRow, {
-    key: c.key,
-    name: c.name,
-    rates: 'CVR ' + K.pct(0.018 + c.w / 40, 1),
-    steps: [{
-      share: c.w / core[0].w,
-      text: K.num(cur.leads * c.w) + ' leads',
-      fill: c.fill
-    }, {
-      share: c.w / core[0].w * 0.42,
-      text: K.num(cur.orders * c.w) + ' đơn'
-    }, {
-      share: c.w / core[0].w * 0.31,
-      text: K.money(cur.nmv * c.w),
-      fill: 'var(--color-neutral-700)'
-    }]
-  })), /*#__PURE__*/React.createElement(Footnote, {
-    divided: true
-  }, "Facebook v\xE0 Google ch\u1ED1t \u0111\u01A1n tr\xEAn lead cao nh\u1EA5t nh\u01B0ng quy m\xF4 lead r\u1EA5t nh\u1ECF."))));
-}
-function OpsScreen({
-  go
-}) {
-  const [dlg, setDlg] = React.useState(false);
-  const counters = [['Kênh có đủ chỉ số', '4 / 12', 'var(--color-accent)'], ['Ngày thiếu dữ liệu', '0', 'var(--text-positive)'], ['Ngày chi phí bất thường', '6', 'var(--text-negative)'], ['Tháng chưa đủ ngày', '1', 'var(--text-negative)']];
-  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(PageHeader, {
-    kicker: "Trang 09 \xB7 Ki\u1EC3m so\xE1t",
-    title: "C\u1EA3nh b\xE1o & ch\u1EA5t l\u01B0\u1EE3ng d\u1EEF li\u1EC7u",
-    subtitle: "Nh\u1EEFng g\xEC c\u1EA7n ki\u1EC3m tra tr\u01B0\u1EDBc khi \u0111\u01B0a s\u1ED1 ra b\xE1o c\xE1o, v\xE0 c\xE1ch m\u1ED7i ch\u1EC9 s\u1ED1 \u0111\u01B0\u1EE3c t\xEDnh",
-    right: /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: 'flex',
-        gap: 'var(--space-2)'
-      }
-    }, /*#__PURE__*/React.createElement(Button, {
-      variant: "secondary",
-      onClick: () => go('overview')
-    }, "\u2190 T\u1ED5ng quan"), /*#__PURE__*/React.createElement(Button, {
-      onClick: () => setDlg(true)
-    }, "Xu\u1EA5t b\xE1o c\xE1o"))
-  }), /*#__PURE__*/React.createElement("section", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(4,1fr)',
-      gap: 'var(--space-3)'
-    }
-  }, counters.map(([l, v, c]) => /*#__PURE__*/React.createElement(Card, {
-    key: l,
-    padding: "var(--space-4)",
-    gap: "var(--space-1)"
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      letterSpacing: 'var(--tracking-label)',
-      textTransform: 'uppercase',
-      color: 'var(--text-muted)'
-    }
-  }, l), /*#__PURE__*/React.createElement("div", {
-    className: "tabular",
-    style: {
-      font: '700 26px/1.1 var(--font-heading)',
-      color: c
-    }
-  }, v)))), /*#__PURE__*/React.createElement("section", {
-    style: {
-      display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
-      gap: 'var(--space-6)'
-    }
-  }, /*#__PURE__*/React.createElement(Card, {
-    padding: "var(--space-6)"
-  }, /*#__PURE__*/React.createElement(CardHeader, {
-    title: "B\u1EA5t th\u01B0\u1EDDng c\u1EA7n ki\u1EC3m tra",
-    note: "T\u1EF1 sinh t\u1EEB d\u1EEF li\u1EC7u, x\u1EBFp theo m\u1EE9c \u1EA3nh h\u01B0\u1EDFng"
-  }), /*#__PURE__*/React.createElement(AlertRow, {
-    level: "Nghi\xEAm tr\u1ECDng",
-    title: "Tiktok Shop v\u01B0\u1EE3t ng\u01B0\u1EE1ng CIR 3 th\xE1ng li\xEAn ti\u1EBFp",
-    detail: "T6 22.8% \xB7 T7 24.1% \xB7 T8 (1\u201318) 25.2% \u2014 ng\u01B0\u1EE1ng 8%"
-  }), /*#__PURE__*/React.createElement(AlertRow, {
-    level: "Nghi\xEAm tr\u1ECDng",
-    title: "Th\xE1ng 8 ch\u1EC9 c\xF3 18/31 ng\xE0y",
-    detail: "M\u1ECDi so s\xE1nh th\xE1ng ph\u1EA3i d\xF9ng run-rate \xD71.72 ho\u1EB7c b\xECnh qu\xE2n/ng\xE0y"
-  }), /*#__PURE__*/React.createElement(AlertRow, {
-    level: "Ch\xFA \xFD",
-    tone: "info",
-    title: "8 k\xEAnh kh\xF4ng c\xF3 c\u1ED9t Spend",
-    detail: "Kh\xF4ng t\xEDnh CIR/CPO/CPL/ROAS cho Lazada, Droppii, Livestream, Tiki, Zalo, Phone, VNShop, Thu 1 \u0111\u1ED5i 1"
-  }), /*#__PURE__*/React.createElement(AlertRow, {
-    level: "Ch\xFA \xFD",
-    tone: "info",
-    title: "T\u1EF7 l\u1EC7 h\u1EE7y \u0111\u01A1n 42.2% theo doanh thu",
-    detail: "33.3% theo s\u1ED1 \u0111\u01A1n \u2014 t\xEDnh tr\xEAn c\u1EA3 hai tr\u1EA1ng th\xE1i \u0111\u01A1n"
-  }), /*#__PURE__*/React.createElement(AlertRow, {
-    level: "\u0110\xE3 ki\u1EC3m",
-    tone: "ok",
-    title: "T\u1ED5ng spend kh\u1EDBp Report Total",
-    detail: "2.02B\u20AB to\xE0n k\u1EF3, kh\u1EDBp sheet \u0111\u1ED1i chi\u1EBFu"
-  })), /*#__PURE__*/React.createElement(Card, {
-    padding: "var(--space-6)"
-  }, /*#__PURE__*/React.createElement(CardHeader, {
-    title: "Ng\xE0y chi ph\xED cao b\u1EA5t th\u01B0\u1EDDng",
-    note: "Chi ph\xED ng\xE0y > trung b\xECnh + 2 l\u1EA7n \u0111\u1ED9 l\u1EC7ch chu\u1EA9n"
-  }), /*#__PURE__*/React.createElement(DataTable, {
-    columns: [{
-      key: 'd',
-      label: 'Ngày'
-    }, {
-      key: 'cost',
-      label: 'Cost',
-      align: 'right'
-    }, {
-      key: 'nmv',
-      label: 'NMV',
-      align: 'right'
-    }, {
-      key: 'orders',
-      label: 'Orders',
-      align: 'right'
-    }, {
-      key: 'ratio',
-      label: 'so với TB ngày',
-      align: 'right'
-    }],
-    rows: [['09/06', '24.1M₫', '188M₫', '842', '×2.6'], ['15/07', '22.8M₫', '201M₫', '904', '×2.4'], ['07/07', '21.2M₫', '175M₫', '781', '×2.2'], ['09/08', '20.9M₫', '212M₫', '951', '×2.2'], ['15/08', '19.4M₫', '198M₫', '888', '×2.1'], ['09/05', '18.7M₫', '166M₫', '742', '×2.0']].map(r => ({
-      d: r[0],
-      cost: {
-        value: r[1],
-        color: 'var(--text-negative)'
-      },
-      nmv: r[2],
-      orders: r[3],
-      ratio: {
-        value: r[4],
-        color: 'var(--color-accent-300)'
-      }
-    }))
-  }), /*#__PURE__*/React.createElement(Footnote, {
-    divided: true
-  }, "C\xE1c ng\xE0y n\xE0y tr\xF9ng ng\xE0y sale s\xE0n (9/9, 15/8\u2026) \u2014 kh\xF4ng coi l\xE0 l\u1ED7i d\u1EEF li\u1EC7u."))), /*#__PURE__*/React.createElement(Card, {
-    padding: "var(--space-6)"
-  }, /*#__PURE__*/React.createElement(CardHeader, {
-    title: "T\u1EEB \u0111i\u1EC3n ch\u1EC9 s\u1ED1",
-    note: "\u0110\xFAng theo c\xF4ng th\u1EE9c trong sheet g\u1ED1c"
-  }), /*#__PURE__*/React.createElement(DataTable, {
-    columns: [{
-      key: 'm',
-      label: 'Chỉ số'
-    }, {
-      key: 'f',
-      label: 'Công thức'
-    }, {
-      key: 'n',
-      label: 'Ghi chú',
-      wrap: true
-    }],
-    rows: [{
-      m: 'CIR',
-      f: 'Cost / NMV',
-      n: 'Chỉ tính cho 4 kênh có Spend'
-    }, {
-      m: 'ROAS',
-      f: 'NMV / Cost',
-      n: 'Nghịch đảo của CIR'
-    }, {
-      m: 'AOV',
-      f: 'NMV / Orders',
-      n: 'Không loại đơn hủy'
-    }, {
-      m: 'CPO',
-      f: 'Cost / Orders',
-      n: '—'
-    }, {
-      m: 'CPL',
-      f: 'Cost / Leads',
-      n: 'Leads chỉ có ở 4 kênh lõi'
-    }, {
-      m: 'Lệch tỷ trọng',
-      f: '%Cost − %NMV',
-      n: 'Điểm phần trăm; dương = ăn ngân sách nhiều hơn phần đóng góp'
-    }]
-  })), dlg && /*#__PURE__*/React.createElement(Dialog, {
-    title: "Xu\u1EA5t b\xE1o c\xE1o",
-    onDismiss: () => setDlg(false),
-    actions: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Button, {
-      variant: "secondary",
-      onClick: () => setDlg(false)
-    }, "H\u1EE7y"), /*#__PURE__*/React.createElement(Button, {
-      onClick: () => setDlg(false)
-    }, "Xu\u1EA5t"))
-  }, "B\u1EA3n xu\u1EA5t gi\u1EEF nguy\xEAn k\u1EF3 \u0111ang xem v\xE0 ghi r\xF5 th\xE1ng 8 ch\u1EC9 c\xF3 18/31 ng\xE0y."));
-}
-const PAGES = [{
-  id: 'overview',
-  label: 'Tổng quan',
-  Screen: OverviewScreen
-}, {
-  id: 'channels',
-  label: 'Phân tích theo kênh',
-  Screen: ChannelsScreen
-}, {
-  id: 'efficiency',
-  label: 'Hiệu quả chi phí',
-  Screen: EfficiencyScreen
-}, {
-  id: 'ops',
-  label: 'Cảnh báo & Định nghĩa',
-  Screen: OpsScreen
-}];
-function App() {
-  const [page, setPage] = React.useState('overview');
-  const [month, setMonth] = React.useState('2026-08');
-  const Screen = PAGES.find(p => p.id === page).Screen;
-  return /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: 'flex',
-      alignItems: 'stretch',
-      minHeight: '100vh'
-    }
-  }, /*#__PURE__*/React.createElement(NavRail, {
-    items: PAGES,
-    active: page,
-    onSelect: setPage,
-    footer: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        letterSpacing: 'var(--tracking-kicker)',
-        textTransform: 'uppercase',
-        color: 'var(--text-faint)'
-      }
-    }, "K\u1EF3 d\u1EEF li\u1EC7u"), /*#__PURE__*/React.createElement("div", {
-      className: "tabular",
-      style: {
-        fontSize: 12.5,
-        color: 'var(--text-secondary)'
-      }
-    }, "01/01/2026 \u2013 18/08/2026"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11.5,
-        color: 'var(--text-faint)',
-        lineHeight: 1.45
-      }
-    }, "Ngu\u1ED3n: BlueStone Perfomance Remake.xlsx \u2014 sheet ", /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: 'var(--color-neutral-400)'
-      }
-    }, "All Data")))
-  }), /*#__PURE__*/React.createElement("main", {
-    style: {
-      flex: 1,
-      minWidth: 'var(--main-min-width)',
-      padding: 'var(--space-8) var(--space-8) 64px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--space-8)'
-    }
-  }, /*#__PURE__*/React.createElement(Screen, {
-    month: month,
-    setMonth: setMonth,
-    go: setPage
-  })));
-}
-Object.assign(window, {
-  App,
-  PAGES
-});
-})(); } catch (e) { __ds_ns.__errors.push({ path: "ui_kits/performance_dashboard/Screens.jsx", error: String((e && e.message) || e) }); }
-
-// ui_kits/performance_dashboard/data.js
-try { (() => {
-// Stand-in figures shaped like the real report extract (window.BS in the source project).
-window.KIT = function () {
-  const MONTHS = [{
-    key: '2026-01',
-    label: 'T1',
-    cost: 181e6,
-    nmv: 2.11e9,
-    orders: 10240,
-    leads: 26400,
-    gmv: 3.02e9
-  }, {
-    key: '2026-02',
-    label: 'T2',
-    cost: 224e6,
-    nmv: 2.58e9,
-    orders: 12010,
-    leads: 29800,
-    gmv: 3.71e9
-  }, {
-    key: '2026-03',
-    label: 'T3',
-    cost: 252e6,
-    nmv: 3.04e9,
-    orders: 13960,
-    leads: 33100,
-    gmv: 4.38e9
-  }, {
-    key: '2026-04',
-    label: 'T4',
-    cost: 241e6,
-    nmv: 2.82e9,
-    orders: 12880,
-    leads: 31500,
-    gmv: 4.09e9
-  }, {
-    key: '2026-05',
-    label: 'T5',
-    cost: 289e6,
-    nmv: 3.38e9,
-    orders: 15320,
-    leads: 36700,
-    gmv: 4.92e9
-  }, {
-    key: '2026-06',
-    label: 'T6',
-    cost: 312e6,
-    nmv: 3.61e9,
-    orders: 16410,
-    leads: 38900,
-    gmv: 5.24e9
-  }, {
-    key: '2026-07',
-    label: 'T7',
-    cost: 338e6,
-    nmv: 4.12e9,
-    orders: 18720,
-    leads: 43200,
-    gmv: 5.98e9
-  }, {
-    key: '2026-08',
-    label: 'T8*',
-    cost: 189e6,
-    nmv: 2.98e9,
-    orders: 13790,
-    leads: 31200,
-    gmv: 4.31e9,
-    partial: true
-  }];
-  const CHANNELS = [{
-    key: 'shopee',
-    name: 'Shopee',
-    fill: 'var(--channel-shopee)',
-    core: true,
-    w: 0.54,
-    cir: 0.090
-  }, {
-    key: 'tiktok',
-    name: 'Tiktok Shop',
-    fill: 'var(--channel-tiktok)',
-    core: true,
-    w: 0.19,
-    cir: 0.252
-  }, {
-    key: 'facebook',
-    name: 'Facebook',
-    fill: 'var(--channel-facebook)',
-    core: true,
-    w: 0.09,
-    cir: 0.164
-  }, {
-    key: 'google',
-    name: 'Google',
-    fill: 'var(--channel-google)',
-    core: true,
-    w: 0.06,
-    cir: 0.121
-  }, {
-    key: 'lazada',
-    name: 'Lazada',
-    fill: 'var(--channel-other)',
-    core: false,
-    w: 0.05
-  }, {
-    key: 'droppii',
-    name: 'Droppii',
-    fill: 'var(--channel-other)',
-    core: false,
-    w: 0.03
-  }, {
-    key: 'live',
-    name: 'Livestream',
-    fill: 'var(--channel-other)',
-    core: false,
-    w: 0.02
-  }, {
-    key: 'tiki',
-    name: 'Tiki',
-    fill: 'var(--channel-other)',
-    core: false,
-    w: 0.01
-  }, {
-    key: 'zalo',
-    name: 'Zalo',
-    fill: 'var(--channel-other)',
-    core: false,
-    w: 0.007
-  }, {
-    key: 'phone',
-    name: 'Phone',
-    fill: 'var(--channel-other)',
-    core: false,
-    w: 0.005
-  }];
-  const days = [];
-  for (let i = 0; i < 230; i++) {
-    days.push({
-      nmv: 78e6 + 26e6 * Math.sin(i / 8.5) + i * 42e4 + (i % 30 === 8 ? 52e6 : 0),
-      cost: 6.2e6 + 1.9e6 * Math.cos(i / 6) + i * 2.1e4
-    });
-  }
-  const short = v => v == null ? '—' : v >= 1e9 ? (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? (v / 1e6).toFixed(0) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : String(Math.round(v));
-  const num = v => v == null ? '—' : Math.round(v).toLocaleString('en-US');
-  const pct = (v, d) => v == null ? '—' : (v * 100).toFixed(d === undefined ? 1 : d) + '%';
-  const money = v => v == null ? '—' : short(v) + '₫';
-  const agg = ms => ms.reduce((a, m) => ({
-    cost: a.cost + m.cost,
-    nmv: a.nmv + m.nmv,
-    gmv: a.gmv + m.gmv,
-    orders: a.orders + m.orders,
-    leads: a.leads + m.leads
-  }), {
-    cost: 0,
-    nmv: 0,
-    gmv: 0,
-    orders: 0,
-    leads: 0
-  });
-  const derive = a => Object.assign({}, a, {
-    cir: a.cost / a.nmv,
-    roas: a.nmv / a.cost,
-    aov: a.nmv / a.orders,
-    cpo: a.cost / a.orders,
-    cpl: a.cost / a.leads,
-    nmvRate: a.nmv / a.gmv,
-    cancel: 1 - a.orders / a.leads
-  });
-  return {
-    MONTHS,
-    CHANNELS,
-    days,
-    short,
-    num,
-    pct,
-    money,
-    agg,
-    derive,
-    period: {
-      from: '01/01/2026',
-      to: '18/08/2026',
-      daysHas: 18,
-      daysAll: 31,
-      factor: 1.72,
-      share: 0.58
-    }
-  };
-}();
-})(); } catch (e) { __ds_ns.__errors.push({ path: "ui_kits/performance_dashboard/data.js", error: String((e && e.message) || e) }); }
-
-__ds_ns.BarPairChart = __ds_scope.BarPairChart;
-
-__ds_ns.FunnelRow = __ds_scope.FunnelRow;
-
-__ds_ns.Legend = __ds_scope.Legend;
-
-__ds_ns.ScatterPlot = __ds_scope.ScatterPlot;
-
-__ds_ns.ShareBar = __ds_scope.ShareBar;
-
-__ds_ns.TrendLine = __ds_scope.TrendLine;
-
-__ds_ns.Button = __ds_scope.Button;
-
-__ds_ns.Card = __ds_scope.Card;
-
-__ds_ns.CardHeader = __ds_scope.CardHeader;
-
-__ds_ns.DataTable = __ds_scope.DataTable;
-
-__ds_ns.DataBar = __ds_scope.DataBar;
-
-__ds_ns.Dialog = __ds_scope.Dialog;
-
-__ds_ns.Input = __ds_scope.Input;
-
-__ds_ns.Radio = __ds_scope.Radio;
-
-__ds_ns.SegmentedControl = __ds_scope.SegmentedControl;
-
-__ds_ns.Tag = __ds_scope.Tag;
-
-__ds_ns.AlertRow = __ds_scope.AlertRow;
-
-__ds_ns.FilterChips = __ds_scope.FilterChips;
-
-__ds_ns.Footnote = __ds_scope.Footnote;
-
-__ds_ns.KpiCard = __ds_scope.KpiCard;
-
-__ds_ns.NavRail = __ds_scope.NavRail;
-
-__ds_ns.PacingBar = __ds_scope.PacingBar;
-
-__ds_ns.PageHeader = __ds_scope.PageHeader;
-
-__ds_ns.TargetCard = __ds_scope.TargetCard;
-
-})();
-
-</script>
+<script src="ds-bundle.js"></script>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<style>/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/98525e6a-fd48-4e0f-afec-613682abfdf9.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/929cc1ba-3558-4412-bd76-6e4f9b731750.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/3af37c0a-7236-40ad-9070-a2e2fbdbabb2.woff2") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/11a644f8-ecc2-4e9f-82c5-949844a8931a.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/3068de6e-1e10-4308-a49c-94d7f4817eef.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/3f8e5b68-88df-429c-9c2b-4ebb9a78157e.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/091f35da-f6e0-4a98-ad91-1b0334d0f483.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/98525e6a-fd48-4e0f-afec-613682abfdf9.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/929cc1ba-3558-4412-bd76-6e4f9b731750.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/3af37c0a-7236-40ad-9070-a2e2fbdbabb2.woff2") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/11a644f8-ecc2-4e9f-82c5-949844a8931a.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/3068de6e-1e10-4308-a49c-94d7f4817eef.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/3f8e5b68-88df-429c-9c2b-4ebb9a78157e.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/091f35da-f6e0-4a98-ad91-1b0334d0f483.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/98525e6a-fd48-4e0f-afec-613682abfdf9.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/929cc1ba-3558-4412-bd76-6e4f9b731750.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/3af37c0a-7236-40ad-9070-a2e2fbdbabb2.woff2") format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/11a644f8-ecc2-4e9f-82c5-949844a8931a.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/3068de6e-1e10-4308-a49c-94d7f4817eef.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/3f8e5b68-88df-429c-9c2b-4ebb9a78157e.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/091f35da-f6e0-4a98-ad91-1b0334d0f483.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/ff5743af-84c6-478b-b012-7742a9cadc41.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/cc0b7e4d-5f7c-4153-b40f-af85fd357a99.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/246abe82-ea13-4a4a-8e7b-9b76ee6a4332.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/ff5743af-84c6-478b-b012-7742a9cadc41.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/cc0b7e4d-5f7c-4153-b40f-af85fd357a99.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/246abe82-ea13-4a4a-8e7b-9b76ee6a4332.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/ff5743af-84c6-478b-b012-7742a9cadc41.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/cc0b7e4d-5f7c-4153-b40f-af85fd357a99.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/246abe82-ea13-4a4a-8e7b-9b76ee6a4332.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style>
 <style>
 :root{
   --color-bg:#FAF8F4; --color-surface:#FFFFFF; --color-text:#1F1B17;
